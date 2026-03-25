@@ -8,6 +8,7 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
     pool_pre_ping=True,
+    connect_args={"ssl": "require"} if "supabase.co" in settings.DATABASE_URL else {},
 )
 
 AsyncSessionLocal = async_sessionmaker(
