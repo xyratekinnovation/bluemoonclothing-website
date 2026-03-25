@@ -1,3 +1,5 @@
+import ssl
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
@@ -14,7 +16,7 @@ engine = create_async_engine(
     db_url,
     echo=settings.DEBUG,
     pool_pre_ping=True,
-    connect_args={"ssl": "require"} if "supabase.co" in db_url else {},
+    connect_args={"ssl": ssl.create_default_context()} if "supabase.co" in db_url else {},
 )
 
 AsyncSessionLocal = async_sessionmaker(

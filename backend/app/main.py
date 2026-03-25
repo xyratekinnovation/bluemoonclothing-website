@@ -6,12 +6,25 @@ from sqlalchemy import text
 
 from app.api.v1.api import api_router
 from app.core.config import get_settings
+from app.db.base import Base
 from app.db.session import engine
 
 settings = get_settings()
 app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG)
 
 logger = logging.getLogger("uvicorn.error")
+
+
+@app.on_event("startup")
+async def startup() -> None:
+    if not settings.AUTO_CREATE_TABLES:
+        return
+
+    # Ensure all models are imported so SQLAlchemy can register tables
+    import app.models  # noqa: F401
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
 
 @app.exception_handler(Exception)
@@ -34,6 +47,8 @@ async def db_health() -> dict[str, str]:
         return {"db": "ok"}
     except Exception as exc:
         logger.exception("DB health check failed", exc_info=exc)
+        if settings.DEBUG:
+            return {"db": "error", "error": str(exc)}
         return {"db": "error"}
 
 

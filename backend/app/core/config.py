@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     SYNC_DATABASE_URL: str
 
+    # When true, the app will create any missing DB tables on startup.
+    # This is useful for first-time deployments in environments where Alembic
+    # migrations are not yet set up.
+    AUTO_CREATE_TABLES: bool = False
+
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
