@@ -1,0 +1,83 @@
+import uuid
+from datetime import datetime
+from decimal import Decimal
+
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.base import Base
+
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    order_number: Mapped[str] = mapped_column(String(40), unique=True, nullable=False, index=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False, index=True)
+    payment_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False, index=True)
+    subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
+    discount_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
+    shipping_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
+    tax_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
+    grand_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
+    shipping_address_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("addresses.id", ondelete="SET NULL"), nullable=True
+    )
+    billing_address_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("addresses.id", ondelete="SET NULL"), nullable=True
+    )
+    coupon_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("coupons.id", ondelete="SET NULL"), nullable=True
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    placed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    status_history = relationship("OrderStatusHistory", back_populates="order", cascade="all, delete-orphan")
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    order_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    product_variant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("product_variants.id", ondelete="SET NULL"), nullable=True
+    )
+    product_name_snapshot: Mapped[str] = mapped_column(String(180), nullable=False)
+    sku_snapshot: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    size_snapshot: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    color_snapshot: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    line_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    order = relationship("Order", back_populates="items")
+
+
+class OrderStatusHistory(Base):
+    __tablename__ = "order_status_history"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    order_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    changed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    order = relationship("Order", back_populates="status_history")
