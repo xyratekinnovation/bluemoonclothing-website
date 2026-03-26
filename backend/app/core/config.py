@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174"
+
+    # One-time bootstrap: create this admin if no user with this email exists.
+    # Override via env in production; set SEED_DEFAULT_ADMIN=false to disable after bootstrap.
+    SEED_DEFAULT_ADMIN: bool = True
+    DEFAULT_ADMIN_EMAIL: str = "bluemoonclothing25@gmail.com"
+    DEFAULT_ADMIN_PASSWORD: str = "12345678"
+
     RAZORPAY_KEY_ID: str | None = None
     RAZORPAY_KEY_SECRET: str | None = None
     RAZORPAY_WEBHOOK_SECRET: str | None = None

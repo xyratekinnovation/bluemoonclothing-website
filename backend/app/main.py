@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.api.v1.api import api_router
 from app.core.config import get_settings
 from app.db.base import Base
+from app.db.bootstrap import ensure_default_admin
 from app.db.session import engine
 
 settings = get_settings()
@@ -34,14 +35,16 @@ logger = logging.getLogger("uvicorn.error")
 
 @app.on_event("startup")
 async def startup() -> None:
-    if not settings.AUTO_CREATE_TABLES:
-        return
+    if settings.AUTO_CREATE_TABLES:
+        import app.models  # noqa: F401
 
-    # Ensure all models are imported so SQLAlchemy can register tables
-    import app.models  # noqa: F401
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        await ensure_default_admin()
+    except Exception:
+        logger.exception("ensure_default_admin failed")
 
 
 @app.exception_handler(Exception)
