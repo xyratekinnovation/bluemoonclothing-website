@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -51,8 +52,8 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/db-health")
-async def db_health() -> dict[str, str]:
+@app.get("/db-health", response_model=None)
+async def db_health() -> dict[str, Any]:
     # Try multiple SSL settings for Supabase compatibility.
     # This helps distinguish "schema mismatch" vs "DB SSL/connection" problems.
     db_url = settings.DATABASE_URL
