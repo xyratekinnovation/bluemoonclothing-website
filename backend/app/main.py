@@ -2,7 +2,10 @@ import logging
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+import ssl as pyssl
+
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.api.v1.api import api_router
 from app.core.config import get_settings
@@ -31,6 +34,15 @@ async def startup() -> None:
 async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
     # Log the full traceback to Render logs, but keep response generic.
     logger.exception("Unhandled exception", exc_info=exc)
+    if settings.DEBUG:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": "Internal Server Error",
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+            },
+        )
     return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 
@@ -41,15 +53,61 @@ async def health() -> dict[str, str]:
 
 @app.get("/db-health")
 async def db_health() -> dict[str, str]:
+    # Try multiple SSL settings for Supabase compatibility.
+    # This helps distinguish "schema mismatch" vs "DB SSL/connection" problems.
+    db_url = settings.DATABASE_URL
+    tried: list[str] = []
+    errors: list[str] = []
+
+    def normalize_url(url: str) -> str:
+        if url.startswith("postgres://"):
+            return "postgresql://" + url[len("postgres://") :]
+        if url.startswith("postgresql://") and "+asyncpg" not in url:
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url
+
+    async def try_select(select_engine_url: str, connect_args: dict) -> None:
+        tmp_engine = create_async_engine(
+            select_engine_url,
+            echo=settings.DEBUG,
+            pool_pre_ping=True,
+            connect_args=connect_args,
+        )
+        try:
+            async with tmp_engine.connect() as conn:
+                await conn.execute(text("select 1"))
+        finally:
+            tmp_engine.dispose()
+
+    # 1) Use the configured engine first (what the app uses normally)
     try:
         async with engine.connect() as conn:
             await conn.execute(text("select 1"))
         return {"db": "ok"}
     except Exception as exc:
-        logger.exception("DB health check failed", exc_info=exc)
-        if settings.DEBUG:
-            return {"db": "error", "error": str(exc)}
-        return {"db": "error"}
+        tried.append("configured_engine")
+        errors.append(str(exc))
+
+    # 2) If Supabase hostname, try common SSL variants
+    if "supabase.co" in db_url:
+        db_url_norm = normalize_url(db_url)
+        ssl_candidates: list[tuple[str, dict]] = [
+            ("ssl_context", {"ssl": pyssl.create_default_context()}),
+            ("ssl_true", {"ssl": True}),
+            ("ssl_none", {}),
+        ]
+        for label, connect_args in ssl_candidates:
+            try:
+                await try_select(db_url_norm, connect_args)
+                return {"db": "ok", "ssl": label}
+            except Exception as exc:
+                tried.append(label)
+                errors.append(str(exc))
+
+    logger.exception("DB health check failed", extra={"tried": tried})
+    if settings.DEBUG:
+        return {"db": "error", "tried": tried, "errors": errors}
+    return {"db": "error"}
 
 
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
