@@ -39,9 +39,34 @@ function getAuthHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+async function throwIfNotOk(response: Response): Promise<void> {
+  if (response.ok) return;
+  const text = await response.text();
+  let message = `HTTP ${response.status}`;
+  try {
+    const data = JSON.parse(text) as { detail?: unknown };
+    if (typeof data.detail === "string") message = data.detail;
+    else if (Array.isArray(data.detail)) message = JSON.stringify(data.detail);
+    else if (data.detail) message = String(data.detail);
+  } catch {
+    if (text) message = text.slice(0, 200);
+  }
+  throw new Error(message);
+}
+
+export async function apiLogin(email: string, password: string): Promise<{ access_token: string; refresh_token: string }> {
+  const response = await fetch(`${API_BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  await throwIfNotOk(response);
+  return response.json() as Promise<{ access_token: string; refresh_token: string }>;
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { headers: getAuthHeaders() });
-  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+  await throwIfNotOk(response);
   return response.json() as Promise<T>;
 }
 
@@ -51,7 +76,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+  await throwIfNotOk(response);
   return response.json() as Promise<T>;
 }
 
@@ -61,7 +86,7 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+  await throwIfNotOk(response);
   return response.json() as Promise<T>;
 }
 
@@ -71,7 +96,7 @@ export async function apiPut<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+  await throwIfNotOk(response);
   return response.json() as Promise<T>;
 }
 
@@ -80,5 +105,5 @@ export async function apiDelete(path: string): Promise<void> {
     method: "DELETE",
     headers: getAuthHeaders(),
   });
-  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+  await throwIfNotOk(response);
 }

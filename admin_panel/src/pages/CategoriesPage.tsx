@@ -55,18 +55,26 @@ export default function CategoriesPage() {
     const parentName = fd.get("parent") as string;
     const parent = categories.find((category) => category.name.toLowerCase() === parentName.toLowerCase());
     const slug = name.toLowerCase().trim().replace(/\s+/g, "-");
-    if (editCat) {
-      await mutateCategory.mutateAsync({
-        id: editCat.id,
-        payload: { name, slug, parent_id: parent?.id ?? null },
+    try {
+      if (editCat) {
+        await mutateCategory.mutateAsync({
+          id: editCat.id,
+          payload: { name, slug, parent_id: parent?.id ?? null },
+        });
+        toast({ title: "Category updated" });
+      } else {
+        await createCategory.mutateAsync({ name, slug, parent_id: parent?.id ?? null, is_active: true, sort_order: 0 });
+        toast({ title: "Category added" });
+      }
+      setDialogOpen(false);
+      setEditCat(null);
+    } catch (err) {
+      toast({
+        title: "Save failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
       });
-      toast({ title: "Category updated" });
-    } else {
-      await createCategory.mutateAsync({ name, slug, parent_id: parent?.id ?? null, is_active: true, sort_order: 0 });
-      toast({ title: "Category added" });
     }
-    setDialogOpen(false);
-    setEditCat(null);
   };
 
   return (

@@ -42,7 +42,7 @@ export default function ProductsPage() {
 
   const { data: productsData = [] } = useQuery({
     queryKey: ["admin-products"],
-    queryFn: () => apiGet<AdminProduct[]>("/products?limit=200&active_only=false"),
+    queryFn: () => apiGet<AdminProduct[]>("/products?limit=100&active_only=false"),
   });
   const { data: categories = [] } = useQuery({
     queryKey: ["admin-categories"],
@@ -113,28 +113,36 @@ export default function ProductsPage() {
     const matchedCategory = categories.find((item) => item.name.toLowerCase() === categoryName.toLowerCase());
     const slug = name.toLowerCase().trim().replace(/\s+/g, "-");
 
-    if (editProduct) {
-      await patchMutation.mutateAsync({
-        id: editProduct.id,
-        payload: {
+    try {
+      if (editProduct) {
+        await patchMutation.mutateAsync({
+          id: editProduct.id,
+          payload: {
+            name,
+            category_id: matchedCategory?.id ?? null,
+            slug,
+          },
+        });
+        toast({ title: "Product updated" });
+      } else {
+        await createMutation.mutateAsync({
           name,
-          category_id: matchedCategory?.id ?? null,
           slug,
-        },
+          category_id: matchedCategory?.id ?? null,
+          is_active: true,
+          is_featured: false,
+          variants: [{ sku, size: "M", color: "Black", price, stock_qty: stock, is_active: true }],
+        });
+        toast({ title: "Product added" });
+      }
+      setDialogOpen(false);
+    } catch (err) {
+      toast({
+        title: "Save failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
       });
-      toast({ title: "Product updated" });
-    } else {
-      await createMutation.mutateAsync({
-        name,
-        slug,
-        category_id: matchedCategory?.id ?? null,
-        is_active: true,
-        is_featured: false,
-        variants: [{ sku, size: "M", color: "Black", price, stock_qty: stock, is_active: true }],
-      });
-      toast({ title: "Product added" });
     }
-    setDialogOpen(false);
   };
 
   return (

@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import ssl as pyssl
 
@@ -17,6 +18,16 @@ from app.db.session import engine
 
 settings = get_settings()
 app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG)
+
+_cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 logger = logging.getLogger("uvicorn.error")
 

@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { Search, Bell, Menu, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,15 @@ export default function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
             <DropdownMenuItem>Profile</DropdownMenuItem>
             <DropdownMenuItem>Account Settings</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">Log Out</DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => {
+                localStorage.removeItem("admin_access_token");
+                navigate("/login", { replace: true });
+              }}
+            >
+              Log Out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
