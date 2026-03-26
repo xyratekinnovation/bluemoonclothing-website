@@ -41,18 +41,20 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const items = useMemo<CartItem[]>(() => {
     if (!cart) return [];
-    return cart.items.map((item) => ({
-      id: item.id,
-      productId: item.variant.product.id,
-      productName: item.variant.product.name,
-      productSlug: item.variant.product.slug,
-      sku: item.variant.sku,
-      variantId: item.variant.id,
-      size: item.variant.size ?? "",
-      color: item.variant.color,
-      quantity: item.quantity,
-      unitPrice: Number(item.unit_price_snapshot ?? item.variant.price ?? 0),
-    }));
+    return cart.items
+      .filter((item) => Boolean((item as any).variant?.product))
+      .map((item) => ({
+        id: item.id,
+        productId: item.variant.product.id,
+        productName: item.variant.product.name,
+        productSlug: item.variant.product.slug,
+        sku: item.variant.sku,
+        variantId: item.variant.id,
+        size: item.variant.size ?? "",
+        color: item.variant.color,
+        quantity: item.quantity,
+        unitPrice: Number(item.unit_price_snapshot ?? item.variant.price ?? 0),
+      }));
   }, [cart]);
 
   const addMutation = useMutation({
