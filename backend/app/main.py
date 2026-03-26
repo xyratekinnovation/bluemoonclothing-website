@@ -4,6 +4,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 import ssl as pyssl
 
+from urllib.parse import urlparse
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -34,16 +36,14 @@ async def startup() -> None:
 async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
     # Log the full traceback to Render logs, but keep response generic.
     logger.exception("Unhandled exception", exc_info=exc)
-    if settings.DEBUG:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "detail": "Internal Server Error",
-                "error_type": type(exc).__name__,
-                "message": str(exc),
-            },
-        )
-    return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal Server Error",
+            "error_type": type(exc).__name__,
+            "message": str(exc),
+        },
+    )
 
 
 @app.get("/health")
@@ -58,6 +58,9 @@ async def db_health() -> dict[str, str]:
     db_url = settings.DATABASE_URL
     tried: list[str] = []
     errors: list[str] = []
+    host: str | None = None
+    port: int | None = None
+    database: str | None = None
 
     def normalize_url(url: str) -> str:
         if url.startswith("postgres://"):
@@ -77,7 +80,9 @@ async def db_health() -> dict[str, str]:
             async with tmp_engine.connect() as conn:
                 await conn.execute(text("select 1"))
         finally:
-            tmp_engine.dispose()
+            maybe_awaitable = tmp_engine.dispose()
+            if hasattr(maybe_awaitable, "__await__"):
+                await maybe_awaitable
 
     # 1) Use the configured engine first (what the app uses normally)
     try:
@@ -91,6 +96,10 @@ async def db_health() -> dict[str, str]:
     # 2) If Supabase hostname, try common SSL variants
     if "supabase.co" in db_url:
         db_url_norm = normalize_url(db_url)
+        parsed = urlparse(db_url_norm)
+        host = parsed.hostname
+        port = parsed.port
+        database = parsed.path.lstrip("/")
         ssl_candidates: list[tuple[str, dict]] = [
             ("ssl_context", {"ssl": pyssl.create_default_context()}),
             ("ssl_true", {"ssl": True}),
@@ -105,9 +114,14 @@ async def db_health() -> dict[str, str]:
                 errors.append(str(exc))
 
     logger.exception("DB health check failed", extra={"tried": tried})
-    if settings.DEBUG:
-        return {"db": "error", "tried": tried, "errors": errors}
-    return {"db": "error"}
+    return {
+        "db": "error",
+        "tried": tried,
+        "errors": errors,
+        "db_host": host if "supabase.co" in db_url else None,
+        "db_port": port if "supabase.co" in db_url else None,
+        "db_name": database if "supabase.co" in db_url else None,
+    }
 
 
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
