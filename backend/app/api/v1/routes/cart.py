@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+import uuid
+
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +12,7 @@ from app.db.session import get_db
 from app.models.cart import Cart, CartItem
 from app.models.product import ProductVariant
 from app.models.user import User
-from app.schemas.cart import CartItemUpsert, CartOut
+from app.schemas.cart import CartItemUpdate, CartItemUpsert, CartOut
 
 router = APIRouter(prefix="/cart", tags=["Cart"])
 
@@ -40,7 +42,16 @@ async def get_cart(
 ) -> Cart:
     cart = await _get_or_create_cart(db, current_user, None)
     await db.commit()
-    result = await db.execute(select(Cart).where(Cart.id == cart.id).options(selectinload(Cart.items)))
+    result = await db.execute(
+        select(Cart)
+        .where(Cart.id == cart.id)
+        .options(
+            selectinload(Cart.items)
+            .selectinload(CartItem.variant)
+            .selectinload(ProductVariant.product)
+            .selectinload(Product.images)
+        )
+    )
     return result.scalar_one()
 
 
@@ -78,5 +89,107 @@ async def add_or_update_item(
         )
 
     await db.commit()
-    result = await db.execute(select(Cart).where(Cart.id == cart.id).options(selectinload(Cart.items)))
+    result = await db.execute(
+        select(Cart)
+        .where(Cart.id == cart.id)
+        .options(
+            selectinload(Cart.items)
+            .selectinload(CartItem.variant)
+            .selectinload(ProductVariant.product)
+            .selectinload(Product.images)
+        )
+    )
+    return result.scalar_one()
+
+
+@router.patch("/items/{item_id}", response_model=CartOut)
+async def update_item_quantity(
+    item_id: uuid.UUID,
+    payload: CartItemUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Cart:
+    cart_result = await db.execute(select(Cart).where(Cart.user_id == current_user.id))
+    cart = cart_result.scalar_one_or_none()
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart not found")
+
+    item_result = await db.execute(select(CartItem).where(CartItem.id == item_id, CartItem.cart_id == cart.id))
+    item = item_result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Cart item not found")
+
+    item.quantity = payload.quantity
+    await db.commit()
+
+    result = await db.execute(
+        select(Cart)
+        .where(Cart.id == cart.id)
+        .options(
+            selectinload(Cart.items)
+            .selectinload(CartItem.variant)
+            .selectinload(ProductVariant.product)
+            .selectinload(Product.images)
+        )
+    )
+    return result.scalar_one()
+
+
+@router.delete("/items/{item_id}", response_model=CartOut)
+async def remove_item(
+    item_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Cart:
+    cart_result = await db.execute(select(Cart).where(Cart.user_id == current_user.id))
+    cart = cart_result.scalar_one_or_none()
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart not found")
+
+    item_result = await db.execute(select(CartItem).where(CartItem.id == item_id, CartItem.cart_id == cart.id))
+    item = item_result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Cart item not found")
+
+    await db.delete(item)
+    await db.commit()
+
+    result = await db.execute(
+        select(Cart)
+        .where(Cart.id == cart.id)
+        .options(
+            selectinload(Cart.items)
+            .selectinload(CartItem.variant)
+            .selectinload(ProductVariant.product)
+            .selectinload(Product.images)
+        )
+    )
+    return result.scalar_one()
+
+
+@router.delete("", response_model=CartOut)
+async def clear_cart(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Cart:
+    cart_result = await db.execute(select(Cart).where(Cart.user_id == current_user.id))
+    cart = cart_result.scalar_one_or_none()
+    if not cart:
+        cart = await _get_or_create_cart(db, current_user, None)
+
+    items_result = await db.execute(select(CartItem).where(CartItem.cart_id == cart.id))
+    for item in items_result.scalars().all():
+        await db.delete(item)
+    await db.commit()
+
+    result = await db.execute(
+        select(Cart)
+        .where(Cart.id == cart.id)
+        .options(
+            selectinload(Cart.items)
+            .selectinload(CartItem.variant)
+            .selectinload(ProductVariant.product)
+            .selectinload(Product.images)
+        )
+    )
     return result.scalar_one()

@@ -1,64 +1,107 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
-import type { CatalogProduct } from "@/types/catalog";
+import React, { createContext, useContext, useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiDelete, apiGet, apiPatch, apiPost, type ApiCart } from "@/lib/api";
 
 export interface CartItem {
-  product: CatalogProduct;
+  id: string;
+  productId: string;
+  productName: string;
+  productSlug: string;
+  sku: string;
+  variantId: string;
   size: string;
+  color: string | null;
   quantity: number;
+  unitPrice: number;
 }
 
 interface CartContextType {
   items: CartItem[];
-  addItem: (product: CatalogProduct, size: string, quantity?: number) => void;
-  removeItem: (productId: string, size: string) => void;
-  updateQuantity: (productId: string, size: string, quantity: number) => void;
-  clearCart: () => void;
+  addVariant: (variantId: string, quantity?: number) => Promise<void>;
+  removeItem: (itemId: string) => Promise<void>;
+  updateQuantity: (itemId: string, quantity: number) => Promise<void>;
+  clearCart: () => Promise<void>;
   totalItems: number;
   totalPrice: number;
+  isLoading: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const isLoggedIn = Boolean(localStorage.getItem("access_token"));
+  const queryClient = useQueryClient();
 
-  const addItem = useCallback((product: CatalogProduct, size: string, quantity = 1) => {
-    setItems((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id && i.size === size);
-      if (existing) {
-        return prev.map((i) =>
-          i.product.id === product.id && i.size === size
-            ? { ...i, quantity: i.quantity + quantity }
-            : i
-        );
-      }
-      return [...prev, { product, size, quantity }];
-    });
-  }, []);
+  const { data: cart, isLoading } = useQuery({
+    queryKey: ["cart"],
+    queryFn: () => apiGet<ApiCart>("/cart", true),
+    enabled: isLoggedIn,
+    retry: false,
+  });
 
-  const removeItem = useCallback((productId: string, size: string) => {
-    setItems((prev) => prev.filter((i) => !(i.product.id === productId && i.size === size)));
-  }, []);
+  const items = useMemo<CartItem[]>(() => {
+    if (!cart) return [];
+    return cart.items.map((item) => ({
+      id: item.id,
+      productId: item.variant.product.id,
+      productName: item.variant.product.name,
+      productSlug: item.variant.product.slug,
+      sku: item.variant.sku,
+      variantId: item.variant.id,
+      size: item.variant.size ?? "",
+      color: item.variant.color,
+      quantity: item.quantity,
+      unitPrice: Number(item.unit_price_snapshot ?? item.variant.price ?? 0),
+    }));
+  }, [cart]);
 
-  const updateQuantity = useCallback((productId: string, size: string, quantity: number) => {
-    if (quantity <= 0) {
-      setItems((prev) => prev.filter((i) => !(i.product.id === productId && i.size === size)));
-      return;
-    }
-    setItems((prev) =>
-      prev.map((i) =>
-        i.product.id === productId && i.size === size ? { ...i, quantity } : i
-      )
-    );
-  }, []);
-
-  const clearCart = useCallback(() => setItems([]), []);
+  const addMutation = useMutation({
+    mutationFn: ({ variantId, quantity }: { variantId: string; quantity: number }) =>
+      apiPost<ApiCart>("/cart/items", { product_variant_id: variantId, quantity }, true),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["cart"] }),
+  });
+  const patchMutation = useMutation({
+    mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
+      apiPatch<ApiCart>(`/cart/items/${itemId}`, { quantity }, true),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["cart"] }),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (itemId: string) => apiDelete(`/cart/items/${itemId}`, true),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["cart"] }),
+  });
+  const clearMutation = useMutation({
+    mutationFn: () => apiDelete("/cart", true),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["cart"] }),
+  });
 
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
-  const totalPrice = items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+  const totalPrice = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, totalItems, totalPrice }}>
+    <CartContext.Provider
+      value={{
+        items,
+        addVariant: async (variantId, quantity = 1) => {
+          if (!isLoggedIn) throw new Error("Please login to add items to cart.");
+          await addMutation.mutateAsync({ variantId, quantity });
+        },
+        removeItem: async (itemId) => {
+          if (!isLoggedIn) throw new Error("Please login to manage cart.");
+          await deleteMutation.mutateAsync(itemId);
+        },
+        updateQuantity: async (itemId, quantity) => {
+          if (!isLoggedIn) throw new Error("Please login to manage cart.");
+          await patchMutation.mutateAsync({ itemId, quantity });
+        },
+        clearCart: async () => {
+          if (!isLoggedIn) throw new Error("Please login to manage cart.");
+          await clearMutation.mutateAsync();
+        },
+        totalItems,
+        totalPrice,
+        isLoading,
+      }}
+    >
       {children}
     </CartContext.Provider>
   );

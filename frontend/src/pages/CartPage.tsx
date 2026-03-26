@@ -4,7 +4,15 @@ import Layout from "@/components/Layout";
 import { useCart } from "@/context/CartContext";
 
 const CartPage = () => {
-  const { items, updateQuantity, removeItem, totalPrice } = useCart();
+  const { items, updateQuantity, removeItem, totalPrice, isLoading } = useCart();
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="container py-20 text-center text-muted-foreground">Loading cart…</div>
+      </Layout>
+    );
+  }
 
   if (items.length === 0) {
     return (
@@ -31,27 +39,30 @@ const CartPage = () => {
         <div className="grid md:grid-cols-3 gap-8">
           <div className="md:col-span-2 space-y-4">
             {items.map((item) => (
-              <div key={`${item.product.id}-${item.size}`} className="flex gap-4 p-4 border border-border rounded-lg">
-                <Link to={`/product/${item.product.id}`} className="w-20 h-24 rounded-md overflow-hidden bg-secondary shrink-0">
-                  <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" />
+              <div key={item.id} className="flex gap-4 p-4 border border-border rounded-lg">
+                <Link to={`/product/${item.productId}`} className="w-20 h-24 rounded-md overflow-hidden bg-secondary shrink-0">
+                  <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">Image</div>
                 </Link>
                 <div className="flex-1 min-w-0">
-                  <Link to={`/product/${item.product.id}`} className="text-sm font-medium text-foreground hover:text-primary transition-colors line-clamp-1">
-                    {item.product.name}
+                  <Link to={`/product/${item.productId}`} className="text-sm font-medium text-foreground hover:text-primary transition-colors line-clamp-1">
+                    {item.productName}
                   </Link>
                   <p className="text-xs text-muted-foreground mt-0.5">Size: {item.size}</p>
-                  <p className="text-sm font-semibold text-primary mt-1">₹{item.product.price.toLocaleString()}</p>
+                  <p className="text-sm font-semibold text-primary mt-1">₹{item.unitPrice.toLocaleString()}</p>
                   <div className="flex items-center justify-between mt-2">
                     <div className="inline-flex items-center border border-border rounded-md">
-                      <button onClick={() => updateQuantity(item.product.id, item.size, item.quantity - 1)} className="p-1.5">
+                      <button
+                        onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
+                        className="p-1.5"
+                      >
                         <Minus className="w-3 h-3" />
                       </button>
                       <span className="px-3 text-xs font-medium">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.product.id, item.size, item.quantity + 1)} className="p-1.5">
+                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="p-1.5">
                         <Plus className="w-3 h-3" />
                       </button>
                     </div>
-                    <button onClick={() => removeItem(item.product.id, item.size)} className="p-1 text-muted-foreground hover:text-destructive transition-colors">
+                    <button onClick={() => removeItem(item.id)} className="p-1 text-muted-foreground hover:text-destructive transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>

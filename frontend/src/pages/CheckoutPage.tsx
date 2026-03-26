@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { apiPost } from "@/lib/api";
 
 const CheckoutPage = () => {
-  const { items, totalPrice, clearCart } = useCart();
+  const { items, totalPrice, clearCart, isLoading } = useCart();
   const [formData, setFormData] = useState({
     fullName: "", email: "", phone: "", address: "", city: "", state: "", pincode: "",
   });
@@ -25,12 +25,20 @@ const CheckoutPage = () => {
     }
     try {
       await apiPost("/orders/checkout", { shipping_total: 0, tax_total: 0, discount_total: 0 }, true);
-      toast.success("Order placed successfully! 🎉");
-      clearCart();
+      toast.success("Order placed successfully!");
+      await clearCart();
     } catch {
       toast.error("Unable to place order. Please try again.");
     }
   };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="container py-20 text-center text-muted-foreground">Loading checkout…</div>
+      </Layout>
+    );
+  }
 
   if (items.length === 0) {
     return (
@@ -88,9 +96,9 @@ const CheckoutPage = () => {
               <h3 className="font-semibold text-foreground mb-4">Order Summary</h3>
               <div className="space-y-3 mb-4">
                 {items.map((item) => (
-                  <div key={`${item.product.id}-${item.size}`} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground line-clamp-1">{item.product.name} × {item.quantity}</span>
-                    <span className="text-foreground font-medium">₹{(item.product.price * item.quantity).toLocaleString()}</span>
+                  <div key={item.id} className="flex justify-between text-sm">
+                    <span className="text-muted-foreground line-clamp-1">{item.productName} × {item.quantity}</span>
+                    <span className="text-foreground font-medium">₹{(item.unitPrice * item.quantity).toLocaleString()}</span>
                   </div>
                 ))}
               </div>

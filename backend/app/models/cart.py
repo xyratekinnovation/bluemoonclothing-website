@@ -46,3 +46,4 @@ class CartItem(Base):
     )
 
     cart = relationship("Cart", back_populates="items")
+    variant = relationship("ProductVariant")

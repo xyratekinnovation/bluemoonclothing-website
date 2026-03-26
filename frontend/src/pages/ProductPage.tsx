@@ -1,4 +1,4 @@
-import { useParams, Link } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Minus, Plus, ShoppingBag, Heart } from "lucide-react";
@@ -11,7 +11,8 @@ import { toCatalogProduct } from "@/types/catalog";
 
 const ProductPage = () => {
   const { id } = useParams<{ id: string }>();
-  const { addItem } = useCart();
+  const navigate = useNavigate();
+  const { addVariant } = useCart();
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
     queryFn: () => apiGet<ApiCategory[]>("/categories"),
@@ -53,8 +54,20 @@ const ProductPage = () => {
       toast.error("Please select a size");
       return;
     }
-    addItem(product, selectedSize, quantity);
-    toast.success(`${product.name} added to cart`);
+    const isLoggedIn = Boolean(localStorage.getItem("access_token"));
+    if (!isLoggedIn) {
+      toast.error("Please login to add items to cart");
+      navigate("/login");
+      return;
+    }
+    const variant = apiProduct?.variants.find((v) => (v.size ?? "") === selectedSize);
+    if (!variant) {
+      toast.error("Selected size is not available");
+      return;
+    }
+    addVariant(variant.id, quantity)
+      .then(() => toast.success(`${product.name} added to cart`))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Unable to add to cart"));
   };
 
   return (

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Package, User, MapPin } from "lucide-react";
 import Layout from "@/components/Layout";
@@ -11,6 +12,7 @@ const tabs = [
 
 const AccountPage = () => {
   const [activeTab, setActiveTab] = useState<string>("orders");
+  const navigate = useNavigate();
   const isLoggedIn = Boolean(localStorage.getItem("access_token"));
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -35,7 +37,18 @@ const AccountPage = () => {
   return (
     <Layout>
       <div className="container py-8 md:py-12 max-w-3xl">
-        <h1 className="font-serif text-3xl md:text-4xl text-foreground mb-8">My Account</h1>
+        <div className="flex items-center justify-between gap-4 mb-8">
+          <h1 className="font-serif text-3xl md:text-4xl text-foreground">My Account</h1>
+          <button
+            className="text-sm text-muted-foreground hover:text-primary transition-colors"
+            onClick={() => {
+              localStorage.removeItem("access_token");
+              navigate("/login", { replace: true });
+            }}
+          >
+            Log out
+          </button>
+        </div>
 
         <div className="flex gap-4 mb-8 border-b border-border">
           {tabs.map(({ id, label, icon: Icon }) => (

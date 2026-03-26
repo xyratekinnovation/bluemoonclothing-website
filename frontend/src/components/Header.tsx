@@ -7,6 +7,7 @@ import logo from "@/assets/logo.png";
 const Header = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const { totalItems } = useCart();
+  const isLoggedIn = Boolean(localStorage.getItem("access_token"));
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border">
@@ -46,7 +47,7 @@ const Header = () => {
           <button className="p-2 text-muted-foreground hover:text-primary transition-colors" aria-label="Search">
             <Search className="w-5 h-5" />
           </button>
-          <Link to="/account" className="p-2 text-muted-foreground hover:text-primary transition-colors" aria-label="Account">
+          <Link to={isLoggedIn ? "/account" : "/login"} className="p-2 text-muted-foreground hover:text-primary transition-colors" aria-label="Account">
             <User className="w-5 h-5" />
           </Link>
           <Link to="/cart" className="p-2 text-muted-foreground hover:text-primary transition-colors relative" aria-label="Cart">
