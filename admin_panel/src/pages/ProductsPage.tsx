@@ -344,12 +344,13 @@ export default function ProductsPage() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>{editProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSave} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleSave} className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <Label>Name</Label>
                 <Input value={draftName} onChange={(e) => setDraftName(e.target.value)} required />
@@ -371,136 +372,137 @@ export default function ProductsPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Variants (Size/Color/SKU)</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDraftVariants((prev) => [...prev, { sku: "", size: "M", color: "", price: 0, stock_qty: 0, is_active: true }])}
-                >
-                  Add Variant
-                </Button>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Variants (Size/Color/SKU)</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDraftVariants((prev) => [...prev, { sku: "", size: "M", color: "", price: 0, stock_qty: 0, is_active: true }])}
+                  >
+                    Add Variant
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {draftVariants.map((v, idx) => (
+                    <div key={idx} className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
+                      <div className="col-span-2">
+                        <Label className="text-xs">SKU</Label>
+                        <Input
+                          value={v.sku}
+                          onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, sku: e.target.value } : x)))}
+                          placeholder="SKU"
+                          required={idx === 0}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Size</Label>
+                        <Input value={v.size} onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, size: e.target.value } : x)))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Color</Label>
+                        <Input value={v.color} onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, color: e.target.value } : x)))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Price (₹)</Label>
+                        <Input
+                          type="number"
+                          value={v.price}
+                          onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, price: Number(e.target.value) } : x)))}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Stock</Label>
+                        <Input
+                          type="number"
+                          value={v.stock_qty}
+                          onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, stock_qty: Number(e.target.value) } : x)))}
+                        />
+                      </div>
+                      <div className="col-span-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={v.is_active}
+                            onCheckedChange={(checked) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, is_active: checked } : x)))}
+                          />
+                          <span className="text-xs text-muted-foreground">Active</span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => setDraftVariants((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)))}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-3">
-                {draftVariants.map((v, idx) => (
-                  <div key={idx} className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
-                    <div className="col-span-2">
-                      <Label className="text-xs">SKU</Label>
-                      <Input
-                        value={v.sku}
-                        onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, sku: e.target.value } : x)))}
-                        placeholder="SKU"
-                        required={idx === 0}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Size</Label>
-                      <Input value={v.size} onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, size: e.target.value } : x)))} />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Color</Label>
-                      <Input value={v.color} onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, color: e.target.value } : x)))} />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Price (₹)</Label>
-                      <Input
-                        type="number"
-                        value={v.price}
-                        onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, price: Number(e.target.value) } : x)))}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Stock</Label>
-                      <Input
-                        type="number"
-                        value={v.stock_qty}
-                        onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, stock_qty: Number(e.target.value) } : x)))}
-                      />
-                    </div>
-                    <div className="col-span-2 flex items-center justify-between">
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Images</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDraftImages((prev) => [...prev, { image_url: "", is_primary: prev.length === 0, sort_order: prev.length }])}
+                  >
+                    Add Image
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {draftImages.map((img, idx) => (
+                    <div key={idx} className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
+                      <div className="col-span-2">
+                        <Label className="text-xs">Image URL</Label>
+                        <Input
+                          value={img.image_url}
+                          onChange={(e) => setDraftImages((prev) => prev.map((x, i) => (i === idx ? { ...x, image_url: e.target.value } : x)))}
+                          placeholder="https://..."
+                        />
+                      </div>
                       <div className="flex items-center gap-2">
                         <Switch
-                          checked={v.is_active}
-                          onCheckedChange={(checked) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, is_active: checked } : x)))}
+                          checked={img.is_primary}
+                          onCheckedChange={(checked) =>
+                            setDraftImages((prev) =>
+                              prev.map((x, i) => ({ ...x, is_primary: i === idx ? checked : false })),
+                            )
+                          }
                         />
-                        <span className="text-xs text-muted-foreground">Active</span>
+                        <span className="text-xs text-muted-foreground">Primary</span>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
-                        onClick={() => setDraftVariants((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)))}
-                      >
-                        Remove
-                      </Button>
+                      <div>
+                        <Label className="text-xs">Sort order</Label>
+                        <Input
+                          type="number"
+                          value={img.sort_order}
+                          onChange={(e) => setDraftImages((prev) => prev.map((x, i) => (i === idx ? { ...x, sort_order: Number(e.target.value) } : x)))}
+                        />
+                      </div>
+                      <div className="col-span-2 flex justify-end">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => setDraftImages((prev) => prev.filter((_, i) => i !== idx))}
+                        >
+                          Remove
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                  {draftImages.length === 0 && <p className="text-sm text-muted-foreground">No images added.</p>}
+                </div>
               </div>
             </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Images</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDraftImages((prev) => [...prev, { image_url: "", is_primary: prev.length === 0, sort_order: prev.length }])}
-                >
-                  Add Image
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {draftImages.map((img, idx) => (
-                  <div key={idx} className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
-                    <div className="col-span-2">
-                      <Label className="text-xs">Image URL</Label>
-                      <Input
-                        value={img.image_url}
-                        onChange={(e) => setDraftImages((prev) => prev.map((x, i) => (i === idx ? { ...x, image_url: e.target.value } : x)))}
-                        placeholder="https://..."
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={img.is_primary}
-                        onCheckedChange={(checked) =>
-                          setDraftImages((prev) =>
-                            prev.map((x, i) => ({ ...x, is_primary: i === idx ? checked : false })),
-                          )
-                        }
-                      />
-                      <span className="text-xs text-muted-foreground">Primary</span>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Sort order</Label>
-                      <Input
-                        type="number"
-                        value={img.sort_order}
-                        onChange={(e) => setDraftImages((prev) => prev.map((x, i) => (i === idx ? { ...x, sort_order: Number(e.target.value) } : x)))}
-                      />
-                    </div>
-                    <div className="col-span-2 flex justify-end">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
-                        onClick={() => setDraftImages((prev) => prev.filter((_, i) => i !== idx))}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                {draftImages.length === 0 && <p className="text-sm text-muted-foreground">No images added.</p>}
-              </div>
-            </div>
-            <DialogFooter>
+            <DialogFooter className="pt-3 mt-3 border-t border-border bg-card">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
               <Button type="submit" className="gold-gradient text-primary-foreground">{editProduct ? "Update" : "Add"}</Button>
             </DialogFooter>
