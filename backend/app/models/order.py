@@ -88,16 +88,19 @@ class Order(Base):
 
     @property
     def latest_payment_status(self) -> str | None:
-        if not self.payments:
+        # Avoid triggering lazy-load IO during response serialization.
+        payments = self.__dict__.get("payments")
+        if not payments:
             return None
-        latest = max(self.payments, key=lambda p: p.created_at)
+        latest = max(payments, key=lambda p: p.created_at)
         return latest.status.value if hasattr(latest.status, "value") else str(latest.status)
 
     @property
     def latest_payment_ref(self) -> str | None:
-        if not self.payments:
+        payments = self.__dict__.get("payments")
+        if not payments:
             return None
-        latest = max(self.payments, key=lambda p: p.created_at)
+        latest = max(payments, key=lambda p: p.created_at)
         return latest.provider_ref
 
 

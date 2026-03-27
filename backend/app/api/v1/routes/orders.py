@@ -116,7 +116,9 @@ async def checkout(
     await db.commit()
 
     order_result = await db.execute(
-        select(Order).where(Order.id == order.id).options(selectinload(Order.items))
+        select(Order)
+        .where(Order.id == order.id)
+        .options(selectinload(Order.items), selectinload(Order.user), selectinload(Order.payments))
     )
     return order_result.scalar_one()
 
