@@ -2,7 +2,7 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, ShoppingBag, FolderTree, Package, Users,
-  CreditCard, Truck, Tag, Image, BarChart3, Bell, Settings,
+  CreditCard, Settings,
   Shield, ChevronLeft, ChevronRight, Crown,
 } from "lucide-react";
 import logo from "@/assets/bluemoon-logo.png";
@@ -14,11 +14,6 @@ const navItems = [
   { label: "Orders", icon: Package, path: "/orders" },
   { label: "Customers", icon: Users, path: "/customers" },
   { label: "Payments", icon: CreditCard, path: "/payments" },
-  { label: "Shipping", icon: Truck, path: "/shipping" },
-  { label: "Coupons", icon: Tag, path: "/coupons" },
-  { label: "Banners", icon: Image, path: "/banners" },
-  { label: "Analytics", icon: BarChart3, path: "/analytics" },
-  { label: "Notifications", icon: Bell, path: "/notifications" },
   { label: "Settings", icon: Settings, path: "/settings" },
   { label: "Access Control", icon: Shield, path: "/access-control" },
 ];

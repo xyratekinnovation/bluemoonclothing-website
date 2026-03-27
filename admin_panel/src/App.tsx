@@ -10,11 +10,6 @@ import CategoriesPage from "@/pages/CategoriesPage";
 import OrdersPage from "@/pages/OrdersPage";
 import CustomersPage from "@/pages/CustomersPage";
 import PaymentsPage from "@/pages/PaymentsPage";
-import ShippingPage from "@/pages/ShippingPage";
-import CouponsPage from "@/pages/CouponsPage";
-import BannersPage from "@/pages/BannersPage";
-import AnalyticsPage from "@/pages/AnalyticsPage";
-import NotificationsPage from "@/pages/NotificationsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import AccessControlPage from "@/pages/AccessControlPage";
 import NotFound from "@/pages/NotFound";
@@ -39,11 +34,6 @@ const App = () => (
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
-            <Route path="/shipping" element={<ShippingPage />} />
-            <Route path="/coupons" element={<CouponsPage />} />
-            <Route path="/banners" element={<BannersPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/access-control" element={<AccessControlPage />} />
           </Route>
