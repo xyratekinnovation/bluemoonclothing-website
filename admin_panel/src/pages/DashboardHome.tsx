@@ -1,59 +1,8 @@
-import {
-  DollarSign, ShoppingCart, Users, TrendingUp, CreditCard,
-  Package, AlertTriangle, Star,
-} from "lucide-react";
+import { DollarSign, ShoppingCart, Users, CreditCard, AlertTriangle, Star } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import MetricCard from "@/components/dashboard/MetricCard";
-import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-} from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { apiGet } from "@/lib/api";
-
-const salesData = [
-  { name: "Mon", sales: 4200 }, { name: "Tue", sales: 5800 },
-  { name: "Wed", sales: 4900 }, { name: "Thu", sales: 7200 },
-  { name: "Fri", sales: 6800 }, { name: "Sat", sales: 9200 },
-  { name: "Sun", sales: 8100 },
-];
-
-const ordersRevenueData = [
-  { name: "Jan", orders: 320, revenue: 28000 },
-  { name: "Feb", orders: 380, revenue: 34000 },
-  { name: "Mar", orders: 450, revenue: 41000 },
-  { name: "Apr", orders: 410, revenue: 38000 },
-  { name: "May", orders: 520, revenue: 48000 },
-  { name: "Jun", orders: 580, revenue: 55000 },
-];
-
-const categoryData = [
-  { name: "Men", value: 42 },
-  { name: "Women", value: 38 },
-  { name: "Kids", value: 12 },
-  { name: "Accessories", value: 8 },
-];
-const PIE_COLORS = ["hsl(40,60%,50%)", "hsl(220,20%,20%)", "hsl(40,50%,70%)", "hsl(220,10%,60%)"];
-
-const recentOrders = [
-  { id: "#BM-1024", customer: "Arjun Mehta", total: "₹4,299", status: "Delivered", date: "Today" },
-  { id: "#BM-1023", customer: "Priya Sharma", total: "₹2,149", status: "Shipped", date: "Today" },
-  { id: "#BM-1022", customer: "Rahul Verma", total: "₹6,799", status: "Paid", date: "Yesterday" },
-  { id: "#BM-1021", customer: "Sneha Patel", total: "₹1,599", status: "Pending", date: "Yesterday" },
-  { id: "#BM-1020", customer: "Vikram Singh", total: "₹3,449", status: "Delivered", date: "2 days ago" },
-];
-
-const lowStockItems = [
-  { name: "Classic Navy Blazer", stock: 3, sku: "BM-BLZ-001" },
-  { name: "Gold Embroidered Kurta", stock: 2, sku: "BM-KRT-045" },
-  { name: "Premium White Shirt", stock: 5, sku: "BM-SHT-012" },
-];
-
-const topProducts = [
-  { name: "Royal Blue Polo", sales: 284, revenue: "₹4,26,000" },
-  { name: "Designer Denim Jacket", sales: 196, revenue: "₹5,88,000" },
-  { name: "Slim Fit Chinos", sales: 178, revenue: "₹2,67,000" },
-];
 
 const statusColor = (s: string) => {
   switch (s) {
@@ -72,9 +21,9 @@ export default function DashboardHome() {
     queryFn: () => apiGet<any>("/analytics/overview"),
   });
   const metrics = data?.metrics;
-  const recentOrdersData = data?.recent_orders ?? recentOrders;
-  const lowStockData = data?.low_stock ?? lowStockItems;
-  const topProductsData = data?.top_products ?? topProducts;
+  const recentOrdersData = data?.recent_orders ?? [];
+  const lowStockData = data?.low_stock ?? [];
+  const topProductsData = data?.top_products ?? [];
 
   return (
     <div className="space-y-6">
@@ -88,40 +37,69 @@ export default function DashboardHome() {
         <MetricCard title="Total Revenue" value={`₹${Number(metrics?.total_revenue ?? 0).toLocaleString()}`} change="Live data" changeType="positive" icon={<DollarSign className="w-5 h-5" />} />
         <MetricCard title="Total Orders" value={`${metrics?.total_orders ?? 0}`} change="Live data" changeType="positive" icon={<ShoppingCart className="w-5 h-5" />} />
         <MetricCard title="Total Customers" value={`${metrics?.total_customers ?? 0}`} change="Live data" changeType="positive" icon={<Users className="w-5 h-5" />} />
-        <MetricCard title="Conversion Rate" value="3.24%" change="-0.8% from last month" changeType="negative" icon={<TrendingUp className="w-5 h-5" />} />
         <MetricCard title="Avg. Order Value" value={`₹${Number(metrics?.avg_order_value ?? 0).toLocaleString()}`} change="Live data" changeType="positive" icon={<CreditCard className="w-5 h-5" />} />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Sales Trend */}
+      {/* Live lists only (no mock charts) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-card rounded-xl p-5 card-shadow">
-          <h3 className="text-sm font-semibold mb-4">Sales Trend (This Week)</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={salesData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(40,10%,90%)" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="hsl(220,10%,60%)" />
-              <YAxis tick={{ fontSize: 12 }} stroke="hsl(220,10%,60%)" />
-              <Tooltip />
-              <Line type="monotone" dataKey="sales" stroke="hsl(40,60%,50%)" strokeWidth={2.5} dot={{ fill: "hsl(40,60%,50%)", r: 4 }} />
-            </LineChart>
-          </ResponsiveContainer>
+          <h3 className="text-sm font-semibold mb-4">Recent Orders</h3>
+          <div className="space-y-3">
+            {recentOrdersData.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No orders yet.</p>
+            ) : (
+              recentOrdersData.slice(0, 6).map((o: any) => (
+                <div key={o.id} className="flex items-center justify-between text-sm">
+                  <div>
+                    <p className="font-medium">{o.id}</p>
+                    <p className="text-xs text-muted-foreground">{o.date}</p>
+                  </div>
+                  <Badge className={statusColor(o.status)}>{o.status}</Badge>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
-        {/* Orders vs Revenue */}
         <div className="bg-card rounded-xl p-5 card-shadow">
-          <h3 className="text-sm font-semibold mb-4">Orders vs Revenue</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={ordersRevenueData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(40,10%,90%)" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="hsl(220,10%,60%)" />
-              <YAxis tick={{ fontSize: 12 }} stroke="hsl(220,10%,60%)" />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="orders" fill="hsl(40,60%,50%)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="revenue" fill="hsl(220,20%,20%)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <h3 className="text-sm font-semibold mb-4">Low Stock</h3>
+          <div className="space-y-3">
+            {lowStockData.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No low-stock items.</p>
+            ) : (
+              lowStockData.slice(0, 8).map((i: any) => (
+                <div key={i.sku} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-warning" />
+                    <div>
+                      <p className="font-medium">{i.name}</p>
+                      <p className="text-xs text-muted-foreground">{i.sku}</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-warning/10 text-warning border-0">{i.stock}</Badge>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="bg-card rounded-xl p-5 card-shadow">
+          <h3 className="text-sm font-semibold mb-4">Top Products</h3>
+          <div className="space-y-3">
+            {topProductsData.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No data yet.</p>
+            ) : (
+              topProductsData.slice(0, 8).map((p: any) => (
+                <div key={p.name} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <Star className="w-4 h-4 text-gold" />
+                    <p className="font-medium">{p.name}</p>
+                  </div>
+                  <span className="text-muted-foreground">{p.revenue}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
 

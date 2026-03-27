@@ -90,7 +90,7 @@ const Index = () => {
             <Link
               key={cat.slug}
               to={`/category/${cat.slug}`}
-              className="group relative aspect-[3/4] rounded-lg overflow-hidden"
+              className="group relative aspect-[4/3] rounded-lg overflow-hidden"
             >
               <img src={cat.image} alt={cat.name} loading="lazy" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
               <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 to-transparent" />
@@ -121,7 +121,7 @@ const Index = () => {
         </div>
         <div className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-4 md:overflow-visible">
           {featuredProducts.map((p) => (
-            <div key={p.id} className="min-w-[60vw] sm:min-w-[40vw] md:min-w-0">
+            <div key={p.id} className="min-w-[52vw] sm:min-w-[34vw] md:min-w-0">
               <ProductCard product={toCatalogProduct(p)} />
             </div>
           ))}

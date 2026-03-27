@@ -11,7 +11,7 @@ const ProductCard = ({ product }: ProductCardProps) => (
     to={`/product/${product.id}`}
     className="group block"
   >
-    <div className="relative overflow-hidden rounded-lg bg-secondary mb-3 aspect-[3/4]">
+    <div className="relative overflow-hidden rounded-lg bg-secondary mb-3 aspect-[4/5]">
       <img
         src={product.image}
         alt={product.name}

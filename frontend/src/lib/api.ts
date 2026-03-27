@@ -78,6 +78,11 @@ function authHeaders() {
 
 async function throwIfNotOk(response: Response): Promise<void> {
   if (response.ok) return;
+  if (response.status === 401) {
+    localStorage.removeItem("access_token");
+    window.location.href = "/login";
+    throw new Error("Unauthorized");
+  }
   const text = await response.text();
   let message = `HTTP ${response.status}`;
   try {

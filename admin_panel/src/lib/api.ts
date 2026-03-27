@@ -64,6 +64,12 @@ function getAuthHeaders() {
 
 async function throwIfNotOk(response: Response): Promise<void> {
   if (response.ok) return;
+  if (response.status === 401) {
+    localStorage.removeItem("admin_access_token");
+    // Hard redirect to break out of any stuck state.
+    window.location.href = "/login";
+    throw new Error("Unauthorized");
+  }
   const text = await response.text();
   let message = `HTTP ${response.status}`;
   try {
