@@ -38,6 +38,23 @@ export interface AdminProduct {
   }>;
 }
 
+export interface AdminProductRow {
+  id: string;
+  name: string;
+  slug: string;
+  category_id: string | null;
+  is_active: boolean;
+  is_featured: boolean;
+  first_variant_id: string | null;
+  sku: string | null;
+  size: string | null;
+  color: string | null;
+  price: number | null;
+  compare_at_price: number | null;
+  stock_qty: number | null;
+  image_url: string | null;
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
 function getAuthHeaders() {

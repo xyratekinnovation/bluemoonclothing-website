@@ -105,3 +105,20 @@ class ProductOut(ORMBase):
     is_featured: bool
     variants: list[ProductVariantOut] = []
     images: list[ProductImageOut] = []
+
+
+class ProductAdminListOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    slug: str
+    category_id: uuid.UUID | None
+    is_active: bool
+    is_featured: bool
+    first_variant_id: uuid.UUID | None = None
+    sku: str | None = None
+    size: str | None = None
+    color: str | None = None
+    price: Decimal | None = None
+    compare_at_price: Decimal | None = None
+    stock_qty: int | None = None
+    image_url: str | None = None

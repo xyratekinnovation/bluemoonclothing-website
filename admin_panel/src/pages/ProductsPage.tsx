@@ -16,7 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { apiDelete, apiGet, apiPatch, apiPost, type AdminCategory, type AdminProduct } from "@/lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost, type AdminCategory, type AdminProduct, type AdminProductRow } from "@/lib/api";
 
 interface ProductRow {
   id: string;
@@ -39,39 +39,40 @@ export default function ProductsPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editProduct, setEditProduct] = useState<ProductRow | null>(null);
+  const [editProduct, setEditProduct] = useState<AdminProduct | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: productsData = [] } = useQuery({
     queryKey: ["admin-products"],
-    queryFn: () => apiGet<AdminProduct[]>("/products?limit=100&active_only=false"),
+    queryFn: () => apiGet<AdminProductRow[]>("/products/admin-list?limit=100"),
+    staleTime: 30_000,
   });
   const { data: categories = [] } = useQuery({
     queryKey: ["admin-categories"],
     queryFn: () => apiGet<AdminCategory[]>("/categories?active_only=false"),
+    staleTime: 60_000,
   });
 
   const products = useMemo<ProductRow[]>(
     () =>
       productsData.map((product) => {
-        const firstVariant = product.variants[0];
         const category = categories.find((item) => item.id === product.category_id);
         return {
           id: product.id,
           name: product.name,
           category: category?.name ?? "Uncategorized",
           categoryId: product.category_id,
-          description: product.description ?? "",
-          imageUrl: product.images?.[0]?.image_url ?? "",
-          price: Number(firstVariant?.price ?? 0),
-          discountPrice: firstVariant?.compare_at_price ? Number(firstVariant.compare_at_price) : undefined,
-          sku: firstVariant?.sku ?? "-",
-          stock: firstVariant?.stock_qty ?? 0,
+          description: "",
+          imageUrl: product.image_url ?? "",
+          price: Number(product.price ?? 0),
+          discountPrice: product.compare_at_price ? Number(product.compare_at_price) : undefined,
+          sku: product.sku ?? "-",
+          stock: product.stock_qty ?? 0,
           status: product.is_active,
           featured: product.is_featured,
-          sizes: product.variants.map((variant) => variant.size).filter(Boolean) as string[],
-          color: firstVariant?.color ?? "",
+          sizes: product.size ? [product.size] : [],
+          color: product.color ?? "",
         };
       }),
     [categories, productsData],
@@ -106,7 +107,15 @@ export default function ProductsPage() {
   };
 
   const openAdd = () => { setEditProduct(null); setDialogOpen(true); };
-  const openEdit = (p: ProductRow) => { setEditProduct(p); setDialogOpen(true); };
+  const openEdit = async (p: ProductRow) => {
+    try {
+      const full = await apiGet<AdminProduct>(`/products/${p.id}`);
+      setEditProduct(full);
+      setDialogOpen(true);
+    } catch (err) {
+      toast({ title: "Unable to load product", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    }
+  };
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -265,13 +274,13 @@ export default function ProductsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <Label>Name</Label>
-                <Input name="name" defaultValue={editProduct?.name} required />
+                <Input name="name" defaultValue={editProduct?.name ?? ""} required />
               </div>
               <div>
                 <Label>Category</Label>
                 <select
                   name="category_id"
-                  defaultValue={editProduct?.categoryId ?? "none"}
+                  defaultValue={editProduct?.category_id ?? "none"}
                   className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
                 >
                   <option value="none">Uncategorized</option>
@@ -284,31 +293,31 @@ export default function ProductsPage() {
               </div>
               <div>
                 <Label>SKU</Label>
-                <Input name="sku" defaultValue={editProduct?.sku} required />
+                <Input name="sku" defaultValue={editProduct?.variants?.[0]?.sku ?? ""} required />
               </div>
               <div className="col-span-2">
                 <Label>Description</Label>
-                <Input name="description" defaultValue={editProduct?.description} placeholder="Product description" />
+                <Input name="description" defaultValue={editProduct?.description ?? ""} placeholder="Product description" />
               </div>
               <div className="col-span-2">
                 <Label>Image URL</Label>
-                <Input name="image_url" defaultValue={editProduct?.imageUrl} placeholder="https://..." />
+                <Input name="image_url" defaultValue={editProduct?.images?.[0]?.image_url ?? ""} placeholder="https://..." />
               </div>
               <div>
                 <Label>Price (₹)</Label>
-                <Input name="price" type="number" defaultValue={editProduct?.price} required />
+                <Input name="price" type="number" defaultValue={Number(editProduct?.variants?.[0]?.price ?? 0)} required />
               </div>
               <div>
                 <Label>Stock</Label>
-                <Input name="stock" type="number" defaultValue={editProduct?.stock} required />
+                <Input name="stock" type="number" defaultValue={Number(editProduct?.variants?.[0]?.stock_qty ?? 0)} required />
               </div>
               <div>
                 <Label>Size</Label>
-                <Input name="size" defaultValue={editProduct?.sizes?.[0] ?? "M"} />
+                <Input name="size" defaultValue={editProduct?.variants?.[0]?.size ?? "M"} />
               </div>
               <div>
                 <Label>Color</Label>
-                <Input name="color" defaultValue={editProduct?.color ?? ""} />
+                <Input name="color" defaultValue={editProduct?.variants?.[0]?.color ?? ""} />
               </div>
             </div>
             <DialogFooter>
