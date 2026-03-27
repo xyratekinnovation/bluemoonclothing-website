@@ -5,7 +5,7 @@ from enum import Enum
 
 from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -45,6 +45,7 @@ class Payment(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+    order = relationship("Order", back_populates="payments")
 
 
 class Refund(Base):

@@ -26,10 +26,10 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174"
 
     # One-time bootstrap: create this admin if no user with this email exists.
-    # Override via env in production; set SEED_DEFAULT_ADMIN=false to disable after bootstrap.
-    SEED_DEFAULT_ADMIN: bool = True
-    DEFAULT_ADMIN_EMAIL: str = "bluemoonclothing25@gmail.com"
-    DEFAULT_ADMIN_PASSWORD: str = "12345678"
+    # Keep disabled by default; enable explicitly only for controlled bootstrap.
+    SEED_DEFAULT_ADMIN: bool = False
+    DEFAULT_ADMIN_EMAIL: str = ""
+    DEFAULT_ADMIN_PASSWORD: str = ""
 
     RAZORPAY_KEY_ID: str | None = None
     RAZORPAY_KEY_SECRET: str | None = None

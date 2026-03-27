@@ -9,12 +9,14 @@ import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, require_admin
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.order import Order, OrderPaymentStatus, OrderStatus, OrderStatusHistory
 from app.models.payment import Payment, PaymentStatus
+from app.models.product import ProductVariant
 from app.models.user import User
 from app.schemas.payment import (
     PaymentCreate,
@@ -27,6 +29,16 @@ from app.schemas.payment import (
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 settings = get_settings()
+
+
+async def _restock_order_items(order: Order, db: AsyncSession) -> None:
+    for item in order.items:
+        if not item.product_variant_id:
+            continue
+        variant_result = await db.execute(select(ProductVariant).where(ProductVariant.id == item.product_variant_id))
+        variant = variant_result.scalar_one_or_none()
+        if variant:
+            variant.stock_qty += item.quantity
 
 
 def _txn_id() -> str:
@@ -246,7 +258,9 @@ async def payment_webhook(
     if mapped_status == PaymentStatus.SUCCESS:
         payment.paid_at = datetime.now(tz=timezone.utc)
 
-    order_result = await db.execute(select(Order).where(Order.id == payment.order_id))
+    order_result = await db.execute(
+        select(Order).where(Order.id == payment.order_id).options(selectinload(Order.items))
+    )
     order = order_result.scalar_one()
     if mapped_status == PaymentStatus.SUCCESS:
         order.payment_status = OrderPaymentStatus.SUCCESS
@@ -254,8 +268,30 @@ async def payment_webhook(
             order.status = OrderStatus.PAID
     elif mapped_status == PaymentStatus.FAILED:
         order.payment_status = OrderPaymentStatus.FAILED
+        if order.status != OrderStatus.CANCELLED:
+            await _restock_order_items(order, db)
+            order.status = OrderStatus.CANCELLED
+            db.add(
+                OrderStatusHistory(
+                    order_id=order.id,
+                    status=order.status,
+                    comment="Payment failed; order cancelled",
+                    changed_by_user_id=order.user_id,
+                )
+            )
     elif mapped_status == PaymentStatus.REFUNDED:
         order.payment_status = OrderPaymentStatus.REFUNDED
+        if order.status != OrderStatus.CANCELLED:
+            await _restock_order_items(order, db)
+            order.status = OrderStatus.CANCELLED
+            db.add(
+                OrderStatusHistory(
+                    order_id=order.id,
+                    status=order.status,
+                    comment="Payment refunded; order cancelled",
+                    changed_by_user_id=order.user_id,
+                )
+            )
 
     await db.commit()
     await db.refresh(payment)

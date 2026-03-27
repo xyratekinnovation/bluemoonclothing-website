@@ -22,6 +22,29 @@ def _make_order_number() -> str:
     return f"BM-{int(datetime.now(tz=timezone.utc).timestamp())}"
 
 
+def _can_transition(current: OrderStatus, target: OrderStatus) -> bool:
+    allowed: dict[OrderStatus, set[OrderStatus]] = {
+        OrderStatus.PENDING: {OrderStatus.PAID, OrderStatus.CANCELLED},
+        OrderStatus.PAID: {OrderStatus.CONFIRMED, OrderStatus.PROCESSING, OrderStatus.SHIPPED, OrderStatus.CANCELLED},
+        OrderStatus.CONFIRMED: {OrderStatus.PROCESSING, OrderStatus.SHIPPED, OrderStatus.CANCELLED},
+        OrderStatus.PROCESSING: {OrderStatus.SHIPPED, OrderStatus.CANCELLED},
+        OrderStatus.SHIPPED: {OrderStatus.DELIVERED},
+        OrderStatus.DELIVERED: set(),
+        OrderStatus.CANCELLED: set(),
+    }
+    return target in allowed.get(current, set())
+
+
+async def _restock_order_items(order: Order, db: AsyncSession) -> None:
+    for item in order.items:
+        if not item.product_variant_id:
+            continue
+        variant_result = await db.execute(select(ProductVariant).where(ProductVariant.id == item.product_variant_id))
+        variant = variant_result.scalar_one_or_none()
+        if variant:
+            variant.stock_qty += item.quantity
+
+
 @router.post("/checkout", response_model=OrderOut)
 async def checkout(
     payload: CheckoutRequest,
@@ -107,7 +130,7 @@ async def list_my_orders(
     result = await db.execute(
         select(Order)
         .where(Order.user_id == current_user.id)
-        .options(selectinload(Order.items))
+        .options(selectinload(Order.items), selectinload(Order.user), selectinload(Order.payments))
         .order_by(Order.created_at.desc())
     )
     return list(result.scalars().all())
@@ -120,7 +143,7 @@ async def list_all_orders(
 ) -> list[Order]:
     result = await db.execute(
         select(Order)
-        .options(selectinload(Order.items))
+        .options(selectinload(Order.items), selectinload(Order.user), selectinload(Order.payments))
         .order_by(Order.created_at.desc())
     )
     return list(result.scalars().all())
@@ -133,15 +156,29 @@ async def update_order_status(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(require_admin),
 ) -> Order:
-    result = await db.execute(select(Order).where(Order.id == order_id).options(selectinload(Order.items)))
+    result = await db.execute(
+        select(Order)
+        .where(Order.id == order_id)
+        .options(selectinload(Order.items), selectinload(Order.user), selectinload(Order.payments))
+    )
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
     try:
-        order.status = OrderStatus(payload.status.lower())
+        target_status = OrderStatus(payload.status.lower())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid order status") from exc
+
+    if target_status == order.status:
+        return order
+    if not _can_transition(order.status, target_status):
+        raise HTTPException(status_code=400, detail=f"Invalid transition: {order.status.value} -> {target_status.value}")
+
+    if target_status == OrderStatus.CANCELLED and order.status != OrderStatus.CANCELLED:
+        await _restock_order_items(order, db)
+
+    order.status = target_status
     db.add(
         OrderStatusHistory(
             order_id=order.id,

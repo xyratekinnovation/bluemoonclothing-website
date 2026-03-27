@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
@@ -37,6 +38,11 @@ class OrderOut(ORMBase):
     tax_total: Decimal
     grand_total: Decimal
     notes: str | None
+    created_at: datetime | None = None
+    customer_name: str | None = None
+    customer_email: str | None = None
+    latest_payment_status: str | None = None
+    latest_payment_ref: str | None = None
     items: list[OrderItemOut] = []
 
 

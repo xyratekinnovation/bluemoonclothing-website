@@ -21,7 +21,7 @@ interface Order {
   orderId: string;
   id: string; customer: string; email: string; items: string[];
   total: number; status: string; date: string; address: string;
-  payment: string; trackingId?: string;
+  payment: string; trackingId?: string; paymentRef?: string;
 }
 
 const statusColor = (s: string) => {
@@ -35,7 +35,7 @@ const statusColor = (s: string) => {
   }
 };
 
-const statuses = ["All", "Pending", "Paid", "Shipped", "Delivered", "Cancelled"];
+const statuses = ["All", "Pending", "Paid", "Confirmed", "Processing", "Shipped", "Delivered", "Cancelled"];
 
 export default function OrdersPage() {
   const [search, setSearch] = useState("");
@@ -51,14 +51,15 @@ export default function OrdersPage() {
       return result.map((order) => ({
         orderId: order.id,
         id: order.order_number,
-        customer: "Customer",
-        email: "-",
+        customer: order.customer_name ?? "Customer",
+        email: order.customer_email ?? "-",
         items: order.items.map((item: any) => `${item.product_name_snapshot} x${item.quantity}`),
         total: Number(order.grand_total),
         status: `${order.status}`.charAt(0).toUpperCase() + `${order.status}`.slice(1),
         date: new Date(order.created_at ?? Date.now()).toISOString().slice(0, 10),
         address: "-",
-        payment: `${order.payment_status}`.charAt(0).toUpperCase() + `${order.payment_status}`.slice(1),
+        payment: `${order.latest_payment_status ?? order.payment_status}`.charAt(0).toUpperCase() + `${order.latest_payment_status ?? order.payment_status}`.slice(1),
+        paymentRef: order.latest_payment_ref ?? undefined,
       })) as Order[];
     },
   });
@@ -151,6 +152,7 @@ export default function OrdersPage() {
                 <div><p className="text-muted-foreground">Email</p><p className="font-medium">{detail.email}</p></div>
                 <div><p className="text-muted-foreground">Address</p><p className="font-medium">{detail.address}</p></div>
                 <div><p className="text-muted-foreground">Payment</p><p className="font-medium">{detail.payment}</p></div>
+                <div><p className="text-muted-foreground">Payment Ref</p><p className="font-medium">{detail.paymentRef ?? "-"}</p></div>
               </div>
               <div>
                 <p className="text-muted-foreground mb-1">Items</p>

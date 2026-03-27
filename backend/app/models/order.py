@@ -75,6 +75,30 @@ class Order(Base):
 
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     status_history = relationship("OrderStatusHistory", back_populates="order", cascade="all, delete-orphan")
+    user = relationship("User")
+    payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan")
+
+    @property
+    def customer_name(self) -> str | None:
+        return self.user.name if self.user else None
+
+    @property
+    def customer_email(self) -> str | None:
+        return self.user.email if self.user else None
+
+    @property
+    def latest_payment_status(self) -> str | None:
+        if not self.payments:
+            return None
+        latest = max(self.payments, key=lambda p: p.created_at)
+        return latest.status.value if hasattr(latest.status, "value") else str(latest.status)
+
+    @property
+    def latest_payment_ref(self) -> str | None:
+        if not self.payments:
+            return None
+        latest = max(self.payments, key=lambda p: p.created_at)
+        return latest.provider_ref
 
 
 class OrderItem(Base):

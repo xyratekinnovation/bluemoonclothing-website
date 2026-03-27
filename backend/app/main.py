@@ -51,14 +51,16 @@ async def startup() -> None:
 async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
     # Log the full traceback to Render logs, but keep response generic.
     logger.exception("Unhandled exception", exc_info=exc)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "detail": "Internal Server Error",
-            "error_type": type(exc).__name__,
-            "message": str(exc),
-        },
-    )
+    if settings.DEBUG:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": "Internal Server Error",
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+            },
+        )
+    return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 
 @app.get("/health")
@@ -129,14 +131,16 @@ async def db_health():
                 errors.append(str(exc))
 
     logger.exception("DB health check failed", extra={"tried": tried})
-    return {
-        "db": "error",
-        "tried": tried,
-        "errors": errors,
-        "db_host": host if "supabase.co" in db_url else None,
-        "db_port": port if "supabase.co" in db_url else None,
-        "db_name": database if "supabase.co" in db_url else None,
-    }
+    if settings.DEBUG:
+        return {
+            "db": "error",
+            "tried": tried,
+            "errors": errors,
+            "db_host": host if "supabase.co" in db_url else None,
+            "db_port": port if "supabase.co" in db_url else None,
+            "db_name": database if "supabase.co" in db_url else None,
+        }
+    return {"db": "error"}
 
 
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
