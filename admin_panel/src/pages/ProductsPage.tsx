@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -35,11 +35,33 @@ interface ProductRow {
   color: string;
 }
 
+type DraftVariant = {
+  sku: string;
+  size: string;
+  color: string;
+  price: number;
+  stock_qty: number;
+  is_active: boolean;
+};
+
+type DraftImage = {
+  image_url: string;
+  is_primary: boolean;
+  sort_order: number;
+};
+
 export default function ProductsPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<AdminProduct | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [draftCategoryId, setDraftCategoryId] = useState<string>("none");
+  const [draftDescription, setDraftDescription] = useState("");
+  const [draftVariants, setDraftVariants] = useState<DraftVariant[]>([
+    { sku: "", size: "M", color: "", price: 0, stock_qty: 0, is_active: true },
+  ]);
+  const [draftImages, setDraftImages] = useState<DraftImage[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -117,22 +139,78 @@ export default function ProductsPage() {
     }
   };
 
+  useEffect(() => {
+    if (!dialogOpen) return;
+    if (!editProduct) {
+      setDraftName("");
+      setDraftCategoryId("none");
+      setDraftDescription("");
+      setDraftVariants([{ sku: "", size: "M", color: "", price: 0, stock_qty: 0, is_active: true }]);
+      setDraftImages([]);
+      return;
+    }
+    setDraftName(editProduct.name);
+    setDraftCategoryId(editProduct.category_id ?? "none");
+    setDraftDescription(editProduct.description ?? "");
+    setDraftVariants(
+      (editProduct.variants?.length ? editProduct.variants : []).map((v) => ({
+        sku: v.sku ?? "",
+        size: v.size ?? "",
+        color: v.color ?? "",
+        price: Number(v.price ?? 0),
+        stock_qty: Number(v.stock_qty ?? 0),
+        is_active: Boolean(v.is_active),
+      })) || [{ sku: "", size: "M", color: "", price: 0, stock_qty: 0, is_active: true }],
+    );
+    const imgs = (editProduct.images ?? []).map((img) => ({
+      image_url: img.image_url,
+      is_primary: img.is_primary,
+      sort_order: img.sort_order,
+    }));
+    setDraftImages(imgs);
+  }, [dialogOpen, editProduct]);
+
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const name = fd.get("name") as string;
-    const rawCategoryId = (fd.get("category_id") as string) || "";
-    const categoryId = rawCategoryId && rawCategoryId !== "none" ? rawCategoryId : null;
-    const description = (fd.get("description") as string) || null;
-    const imageUrl = (fd.get("image_url") as string) || "";
-    const price = Number(fd.get("price"));
-    const stock = Number(fd.get("stock"));
-    const sku = fd.get("sku") as string;
-    const size = (fd.get("size") as string) || "M";
-    const color = (fd.get("color") as string) || null;
+    const name = draftName.trim();
+    if (!name) {
+      toast({ title: "Name is required", variant: "destructive" });
+      return;
+    }
+    const categoryId = draftCategoryId && draftCategoryId !== "none" ? draftCategoryId : null;
+    const description = draftDescription?.trim() ? draftDescription.trim() : null;
     const slug = name.toLowerCase().trim().replace(/\s+/g, "-");
-    const images = imageUrl ? [{ image_url: imageUrl, is_primary: true, sort_order: 0 }] : [];
-    const variants = [{ sku, size, color, price, stock_qty: stock, is_active: true }];
+
+    const variants = draftVariants
+      .map((v) => ({
+        sku: v.sku.trim(),
+        size: v.size?.trim() || null,
+        color: v.color?.trim() || null,
+        price: Number(v.price || 0),
+        stock_qty: Number(v.stock_qty || 0),
+        is_active: Boolean(v.is_active),
+      }))
+      .filter((v) => Boolean(v.sku));
+
+    if (variants.length === 0) {
+      toast({ title: "Add at least 1 variant with SKU", variant: "destructive" });
+      return;
+    }
+
+    const images = draftImages
+      .map((img, idx) => ({
+        image_url: img.image_url.trim(),
+        is_primary: Boolean(img.is_primary),
+        sort_order: Number.isFinite(img.sort_order) ? img.sort_order : idx,
+      }))
+      .filter((img) => Boolean(img.image_url));
+
+    // Ensure max one primary image
+    const primaries = images.filter((i) => i.is_primary);
+    if (primaries.length > 1) {
+      toast({ title: "Only one primary image allowed", variant: "destructive" });
+      return;
+    }
 
     try {
       if (editProduct) {
@@ -274,15 +352,11 @@ export default function ProductsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <Label>Name</Label>
-                <Input name="name" defaultValue={editProduct?.name ?? ""} required />
+                <Input value={draftName} onChange={(e) => setDraftName(e.target.value)} required />
               </div>
               <div>
                 <Label>Category</Label>
-                <select
-                  name="category_id"
-                  defaultValue={editProduct?.category_id ?? "none"}
-                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
-                >
+                <select value={draftCategoryId} onChange={(e) => setDraftCategoryId(e.target.value)} className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card">
                   <option value="none">Uncategorized</option>
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>
@@ -291,33 +365,139 @@ export default function ProductsPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <Label>SKU</Label>
-                <Input name="sku" defaultValue={editProduct?.variants?.[0]?.sku ?? ""} required />
-              </div>
               <div className="col-span-2">
                 <Label>Description</Label>
-                <Input name="description" defaultValue={editProduct?.description ?? ""} placeholder="Product description" />
+                <Input value={draftDescription} onChange={(e) => setDraftDescription(e.target.value)} placeholder="Product description" />
               </div>
-              <div className="col-span-2">
-                <Label>Image URL</Label>
-                <Input name="image_url" defaultValue={editProduct?.images?.[0]?.image_url ?? ""} placeholder="https://..." />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Variants (Size/Color/SKU)</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDraftVariants((prev) => [...prev, { sku: "", size: "M", color: "", price: 0, stock_qty: 0, is_active: true }])}
+                >
+                  Add Variant
+                </Button>
               </div>
-              <div>
-                <Label>Price (₹)</Label>
-                <Input name="price" type="number" defaultValue={Number(editProduct?.variants?.[0]?.price ?? 0)} required />
+              <div className="space-y-3">
+                {draftVariants.map((v, idx) => (
+                  <div key={idx} className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
+                    <div className="col-span-2">
+                      <Label className="text-xs">SKU</Label>
+                      <Input
+                        value={v.sku}
+                        onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, sku: e.target.value } : x)))}
+                        placeholder="SKU"
+                        required={idx === 0}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Size</Label>
+                      <Input value={v.size} onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, size: e.target.value } : x)))} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Color</Label>
+                      <Input value={v.color} onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, color: e.target.value } : x)))} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Price (₹)</Label>
+                      <Input
+                        type="number"
+                        value={v.price}
+                        onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, price: Number(e.target.value) } : x)))}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Stock</Label>
+                      <Input
+                        type="number"
+                        value={v.stock_qty}
+                        onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, stock_qty: Number(e.target.value) } : x)))}
+                      />
+                    </div>
+                    <div className="col-span-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={v.is_active}
+                          onCheckedChange={(checked) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, is_active: checked } : x)))}
+                        />
+                        <span className="text-xs text-muted-foreground">Active</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => setDraftVariants((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)))}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div>
-                <Label>Stock</Label>
-                <Input name="stock" type="number" defaultValue={Number(editProduct?.variants?.[0]?.stock_qty ?? 0)} required />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Images</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDraftImages((prev) => [...prev, { image_url: "", is_primary: prev.length === 0, sort_order: prev.length }])}
+                >
+                  Add Image
+                </Button>
               </div>
-              <div>
-                <Label>Size</Label>
-                <Input name="size" defaultValue={editProduct?.variants?.[0]?.size ?? "M"} />
-              </div>
-              <div>
-                <Label>Color</Label>
-                <Input name="color" defaultValue={editProduct?.variants?.[0]?.color ?? ""} />
+              <div className="space-y-3">
+                {draftImages.map((img, idx) => (
+                  <div key={idx} className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
+                    <div className="col-span-2">
+                      <Label className="text-xs">Image URL</Label>
+                      <Input
+                        value={img.image_url}
+                        onChange={(e) => setDraftImages((prev) => prev.map((x, i) => (i === idx ? { ...x, image_url: e.target.value } : x)))}
+                        placeholder="https://..."
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={img.is_primary}
+                        onCheckedChange={(checked) =>
+                          setDraftImages((prev) =>
+                            prev.map((x, i) => ({ ...x, is_primary: i === idx ? checked : false })),
+                          )
+                        }
+                      />
+                      <span className="text-xs text-muted-foreground">Primary</span>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Sort order</Label>
+                      <Input
+                        type="number"
+                        value={img.sort_order}
+                        onChange={(e) => setDraftImages((prev) => prev.map((x, i) => (i === idx ? { ...x, sort_order: Number(e.target.value) } : x)))}
+                      />
+                    </div>
+                    <div className="col-span-2 flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => setDraftImages((prev) => prev.filter((_, i) => i !== idx))}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {draftImages.length === 0 && <p className="text-sm text-muted-foreground">No images added.</p>}
               </div>
             </div>
             <DialogFooter>
