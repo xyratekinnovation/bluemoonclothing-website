@@ -71,6 +71,8 @@ class ProductUpdate(BaseModel):
     category_id: uuid.UUID | None = None
     is_active: bool | None = None
     is_featured: bool | None = None
+    variants: list[ProductVariantIn] | None = None
+    images: list[ProductImageIn] | None = None
 
 
 class ProductVariantOut(ORMBase):

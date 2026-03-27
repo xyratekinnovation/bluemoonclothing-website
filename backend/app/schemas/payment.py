@@ -12,6 +12,26 @@ class PaymentCreate(BaseModel):
     provider_ref: str | None = None
 
 
+class PaymentInitiateRequest(BaseModel):
+    order_id: uuid.UUID
+
+
+class PaymentInitiateOut(BaseModel):
+    payment_id: uuid.UUID
+    order_id: uuid.UUID
+    transaction_id: str
+    amount_paise: int
+    currency: str = "INR"
+    key_id: str
+
+
+class PaymentVerifyRequest(BaseModel):
+    order_id: uuid.UUID
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+
 class PaymentWebhook(BaseModel):
     transaction_id: str
     status: str

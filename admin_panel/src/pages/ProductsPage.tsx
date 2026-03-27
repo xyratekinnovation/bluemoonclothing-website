@@ -23,6 +23,8 @@ interface ProductRow {
   name: string;
   category: string;
   categoryId: string | null;
+  description: string;
+  imageUrl: string;
   price: number;
   discountPrice?: number;
   sku: string;
@@ -30,6 +32,7 @@ interface ProductRow {
   status: boolean;
   featured: boolean;
   sizes: string[];
+  color: string;
 }
 
 export default function ProductsPage() {
@@ -59,6 +62,8 @@ export default function ProductsPage() {
           name: product.name,
           category: category?.name ?? "Uncategorized",
           categoryId: product.category_id,
+          description: product.description ?? "",
+          imageUrl: product.images?.[0]?.image_url ?? "",
           price: Number(firstVariant?.price ?? 0),
           discountPrice: firstVariant?.compare_at_price ? Number(firstVariant.compare_at_price) : undefined,
           sku: firstVariant?.sku ?? "-",
@@ -66,6 +71,7 @@ export default function ProductsPage() {
           status: product.is_active,
           featured: product.is_featured,
           sizes: product.variants.map((variant) => variant.size).filter(Boolean) as string[],
+          color: firstVariant?.color ?? "",
         };
       }),
     [categories, productsData],
@@ -106,12 +112,18 @@ export default function ProductsPage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const name = fd.get("name") as string;
-    const categoryName = fd.get("category") as string;
+    const rawCategoryId = (fd.get("category_id") as string) || "";
+    const categoryId = rawCategoryId && rawCategoryId !== "none" ? rawCategoryId : null;
+    const description = (fd.get("description") as string) || null;
+    const imageUrl = (fd.get("image_url") as string) || "";
     const price = Number(fd.get("price"));
     const stock = Number(fd.get("stock"));
     const sku = fd.get("sku") as string;
-    const matchedCategory = categories.find((item) => item.name.toLowerCase() === categoryName.toLowerCase());
+    const size = (fd.get("size") as string) || "M";
+    const color = (fd.get("color") as string) || null;
     const slug = name.toLowerCase().trim().replace(/\s+/g, "-");
+    const images = imageUrl ? [{ image_url: imageUrl, is_primary: true, sort_order: 0 }] : [];
+    const variants = [{ sku, size, color, price, stock_qty: stock, is_active: true }];
 
     try {
       if (editProduct) {
@@ -119,8 +131,11 @@ export default function ProductsPage() {
           id: editProduct.id,
           payload: {
             name,
-            category_id: matchedCategory?.id ?? null,
+            category_id: categoryId,
             slug,
+            description,
+            variants,
+            images,
           },
         });
         toast({ title: "Product updated" });
@@ -128,10 +143,12 @@ export default function ProductsPage() {
         await createMutation.mutateAsync({
           name,
           slug,
-          category_id: matchedCategory?.id ?? null,
+          category_id: categoryId,
+          description,
           is_active: true,
           is_featured: false,
-          variants: [{ sku, size: "M", color: "Black", price, stock_qty: stock, is_active: true }],
+          variants,
+          images,
         });
         toast({ title: "Product added" });
       }
@@ -252,11 +269,30 @@ export default function ProductsPage() {
               </div>
               <div>
                 <Label>Category</Label>
-                <Input name="category" defaultValue={editProduct?.category} required />
+                <select
+                  name="category_id"
+                  defaultValue={editProduct?.categoryId ?? "none"}
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card"
+                >
+                  <option value="none">Uncategorized</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <Label>SKU</Label>
                 <Input name="sku" defaultValue={editProduct?.sku} required />
+              </div>
+              <div className="col-span-2">
+                <Label>Description</Label>
+                <Input name="description" defaultValue={editProduct?.description} placeholder="Product description" />
+              </div>
+              <div className="col-span-2">
+                <Label>Image URL</Label>
+                <Input name="image_url" defaultValue={editProduct?.imageUrl} placeholder="https://..." />
               </div>
               <div>
                 <Label>Price (₹)</Label>
@@ -265,6 +301,14 @@ export default function ProductsPage() {
               <div>
                 <Label>Stock</Label>
                 <Input name="stock" type="number" defaultValue={editProduct?.stock} required />
+              </div>
+              <div>
+                <Label>Size</Label>
+                <Input name="size" defaultValue={editProduct?.sizes?.[0] ?? "M"} />
+              </div>
+              <div>
+                <Label>Color</Label>
+                <Input name="color" defaultValue={editProduct?.color ?? ""} />
               </div>
             </div>
             <DialogFooter>

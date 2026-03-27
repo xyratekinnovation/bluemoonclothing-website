@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import Select, select
+from sqlalchemy import Select, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -93,8 +93,22 @@ async def update_product(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    payload_data = payload.model_dump(exclude_unset=True)
+    variants = payload_data.pop("variants", None)
+    images = payload_data.pop("images", None)
+
+    for key, value in payload_data.items():
         setattr(product, key, value)
+
+    if variants is not None:
+        await db.execute(delete(ProductVariant).where(ProductVariant.product_id == product.id))
+        for variant in variants:
+            db.add(ProductVariant(product_id=product.id, **variant))
+
+    if images is not None:
+        await db.execute(delete(ProductImage).where(ProductImage.product_id == product.id))
+        for image in images:
+            db.add(ProductImage(product_id=product.id, **image))
 
     await db.commit()
     return await get_product(product.id, db)

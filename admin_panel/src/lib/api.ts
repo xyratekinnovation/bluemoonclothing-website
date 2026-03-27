@@ -30,6 +30,12 @@ export interface AdminProduct {
   is_active: boolean;
   is_featured: boolean;
   variants: AdminVariant[];
+  images?: Array<{
+    id: string;
+    image_url: string;
+    is_primary: boolean;
+    sort_order: number;
+  }>;
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";

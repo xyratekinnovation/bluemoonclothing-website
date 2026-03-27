@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ShieldCheck, Truck, RotateCcw } from "lucide-react";
 import Layout from "@/components/Layout";
 import { useCart } from "@/context/CartContext";
@@ -8,6 +8,8 @@ import { apiPost } from "@/lib/api";
 
 const CheckoutPage = () => {
   const { items, totalPrice, clearCart, isLoading } = useCart();
+  const navigate = useNavigate();
+  const [placingOrder, setPlacingOrder] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "", email: "", phone: "", address: "", city: "", state: "", pincode: "",
   });
@@ -15,6 +17,20 @@ const CheckoutPage = () => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
+
+  const loadRazorpayScript = () =>
+    new Promise<boolean>((resolve) => {
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,11 +40,76 @@ const CheckoutPage = () => {
       return;
     }
     try {
-      await apiPost("/orders/checkout", { shipping_total: 0, tax_total: 0, discount_total: 0 }, true);
-      toast.success("Order placed successfully!");
-      await clearCart();
-    } catch {
-      toast.error("Unable to place order. Please try again.");
+      setPlacingOrder(true);
+      const sdkOk = await loadRazorpayScript();
+      if (!sdkOk) {
+        toast.error("Unable to load payment gateway.");
+        return;
+      }
+
+      const order = await apiPost<{ id: string; order_number: string; grand_total: number }>(
+        "/orders/checkout",
+        { shipping_total: 0, tax_total: 0, discount_total: 0, notes: `${formData.fullName} | ${formData.phone}` },
+        true
+      );
+
+      const payment = await apiPost<{
+        payment_id: string;
+        order_id: string;
+        transaction_id: string;
+        amount_paise: number;
+        currency: string;
+        key_id: string;
+      }>("/payments/initiate", { order_id: order.id }, true);
+
+      const razorpay = new (window as any).Razorpay({
+        key: payment.key_id,
+        amount: payment.amount_paise,
+        currency: payment.currency,
+        name: "Bluemoon",
+        description: `Order ${order.order_number}`,
+        order_id: payment.transaction_id,
+        prefill: {
+          name: formData.fullName,
+          email: formData.email,
+          contact: formData.phone,
+        },
+        notes: {
+          address: `${formData.address}, ${formData.city}, ${formData.state} - ${formData.pincode}`,
+        },
+        handler: async (response: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) => {
+          try {
+            await apiPost(
+              "/payments/verify",
+              {
+                order_id: order.id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              },
+              true
+            );
+            await clearCart();
+            toast.success("Payment successful! Order confirmed.");
+            navigate("/account");
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Payment verification failed");
+          }
+        },
+      });
+
+      razorpay.on("payment.failed", () => {
+        toast.error("Payment failed. You can retry from your account/orders.");
+      });
+      razorpay.open();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unable to place order. Please try again.");
+    } finally {
+      setPlacingOrder(false);
     }
   };
 
@@ -108,9 +189,10 @@ const CheckoutPage = () => {
               </div>
               <button
                 type="submit"
+                disabled={placingOrder}
                 className="w-full bg-gold-gradient text-primary-foreground py-3.5 rounded-md text-sm font-medium tracking-wide hover:opacity-90 transition-opacity"
               >
-                Place Order
+                {placingOrder ? "Processing..." : "Place Order"}
               </button>
             </div>
           </div>
