@@ -113,7 +113,6 @@ async def checkout(
         )
     )
 
-    await db.delete(cart)
     await db.commit()
 
     order_result = await db.execute(

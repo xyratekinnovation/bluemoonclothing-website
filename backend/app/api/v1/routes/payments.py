@@ -17,6 +17,7 @@ from app.db.session import get_db
 from app.models.order import Order, OrderPaymentStatus, OrderStatus, OrderStatusHistory
 from app.models.payment import Payment, PaymentStatus
 from app.models.product import ProductVariant
+from app.models.cart import Cart, CartItem
 from app.models.user import User
 from app.schemas.payment import (
     PaymentCreate,
@@ -39,6 +40,18 @@ async def _restock_order_items(order: Order, db: AsyncSession) -> None:
         variant = variant_result.scalar_one_or_none()
         if variant:
             variant.stock_qty += item.quantity
+
+
+async def _clear_user_cart(user_id, db: AsyncSession) -> None:
+    if not user_id:
+        return
+    cart_result = await db.execute(select(Cart).where(Cart.user_id == user_id))
+    cart = cart_result.scalar_one_or_none()
+    if not cart:
+        return
+    items_result = await db.execute(select(CartItem).where(CartItem.cart_id == cart.id))
+    for item in items_result.scalars().all():
+        await db.delete(item)
 
 
 def _txn_id() -> str:
@@ -200,6 +213,7 @@ async def verify_payment(
                 changed_by_user_id=current_user.id,
             )
         )
+    await _clear_user_cart(order.user_id, db)
 
     await db.commit()
     await db.refresh(payment)
@@ -266,6 +280,7 @@ async def payment_webhook(
         order.payment_status = OrderPaymentStatus.SUCCESS
         if order.status == OrderStatus.PENDING:
             order.status = OrderStatus.PAID
+        await _clear_user_cart(order.user_id, db)
     elif mapped_status == PaymentStatus.FAILED:
         order.payment_status = OrderPaymentStatus.FAILED
         if order.status != OrderStatus.CANCELLED:
