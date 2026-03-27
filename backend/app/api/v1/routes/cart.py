@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.cart import Cart, CartItem
-from app.models.product import ProductVariant
+from app.models.product import Product, ProductVariant
 from app.models.user import User
 from app.schemas.cart import CartItemUpdate, CartItemUpsert, CartOut
 
