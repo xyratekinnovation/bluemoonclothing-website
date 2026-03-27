@@ -1,12 +1,20 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+
+
+class PaymentStatus(str, Enum):
+    PENDING = "pending"
+    SUCCESS = "success"
+    FAILED = "failed"
+    REFUNDED = "refunded"
 
 
 class Payment(Base):
@@ -19,7 +27,17 @@ class Payment(Base):
     transaction_id: Mapped[str] = mapped_column(String(80), unique=True, nullable=False, index=True)
     provider: Mapped[str] = mapped_column(String(40), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False, index=True)
+    status: Mapped[PaymentStatus] = mapped_column(
+        SAEnum(
+            PaymentStatus,
+            name="payment_status",
+            values_callable=lambda obj: [e.value for e in obj],
+            create_type=False,
+        ),
+        default=PaymentStatus.PENDING,
+        nullable=False,
+        index=True,
+    )
     provider_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     raw_payload_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

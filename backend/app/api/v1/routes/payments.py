@@ -14,7 +14,7 @@ from app.api.deps import get_current_user, require_admin
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.order import Order, OrderPaymentStatus, OrderStatus, OrderStatusHistory
-from app.models.payment import Payment
+from app.models.payment import Payment, PaymentStatus
 from app.models.user import User
 from app.schemas.payment import (
     PaymentCreate,
@@ -50,7 +50,7 @@ async def create_payment(
         provider=payload.provider,
         provider_ref=payload.provider_ref,
         amount=Decimal(order.grand_total),
-        status="pending",
+        status=PaymentStatus.PENDING,
     )
     db.add(payment)
     await db.commit()
@@ -84,7 +84,9 @@ async def initiate_payment(
         raise HTTPException(status_code=403, detail="Forbidden")
 
     existing_result = await db.execute(
-        select(Payment).where(Payment.order_id == order.id, Payment.status == "pending").order_by(Payment.created_at.desc())
+        select(Payment)
+        .where(Payment.order_id == order.id, Payment.status == PaymentStatus.PENDING)
+        .order_by(Payment.created_at.desc())
     )
     existing_payment = existing_result.scalar_one_or_none()
     if existing_payment:
@@ -127,7 +129,7 @@ async def initiate_payment(
         provider="razorpay",
         provider_ref=None,
         amount=Decimal(order.grand_total),
-        status="pending",
+        status=PaymentStatus.PENDING,
         raw_payload_json=gateway_order,
     )
     db.add(payment)
@@ -168,7 +170,7 @@ async def verify_payment(
     ):
         raise HTTPException(status_code=400, detail="Invalid payment signature")
 
-    payment.status = "success"
+    payment.status = PaymentStatus.SUCCESS
     payment.provider_ref = payload.razorpay_payment_id
     payment.paid_at = datetime.now(tz=timezone.utc)
     payment.raw_payload_json = {
@@ -224,10 +226,10 @@ async def payment_webhook(
         raise HTTPException(status_code=404, detail="Transaction not found")
 
     status_map = {
-        "payment.captured": "success",
-        "payment.authorized": "success",
-        "payment.failed": "failed",
-        "refund.processed": "refunded",
+        "payment.captured": PaymentStatus.SUCCESS,
+        "payment.authorized": PaymentStatus.SUCCESS,
+        "payment.failed": PaymentStatus.FAILED,
+        "refund.processed": PaymentStatus.REFUNDED,
     }
     mapped_status = status_map.get(event)
     if not mapped_status:
@@ -241,18 +243,18 @@ async def payment_webhook(
     if razorpay_payment_id:
         payment.provider_ref = razorpay_payment_id
     payment.raw_payload_json = payload
-    if mapped_status == "success":
+    if mapped_status == PaymentStatus.SUCCESS:
         payment.paid_at = datetime.now(tz=timezone.utc)
 
     order_result = await db.execute(select(Order).where(Order.id == payment.order_id))
     order = order_result.scalar_one()
-    if mapped_status == "success":
+    if mapped_status == PaymentStatus.SUCCESS:
         order.payment_status = OrderPaymentStatus.SUCCESS
         if order.status == OrderStatus.PENDING:
             order.status = OrderStatus.PAID
-    elif mapped_status == "failed":
+    elif mapped_status == PaymentStatus.FAILED:
         order.payment_status = OrderPaymentStatus.FAILED
-    elif mapped_status == "refunded":
+    elif mapped_status == PaymentStatus.REFUNDED:
         order.payment_status = OrderPaymentStatus.REFUNDED
 
     await db.commit()
