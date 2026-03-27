@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_current_user, require_admin
 from app.db.session import get_db
 from app.models.cart import Cart
-from app.models.order import Order, OrderItem, OrderStatusHistory
+from app.models.order import Order, OrderItem, OrderPaymentStatus, OrderStatus, OrderStatusHistory
 from app.models.product import Product, ProductVariant
 from app.models.user import User
 from app.schemas.order import CheckoutRequest, OrderOut, OrderStatusUpdate
@@ -37,8 +37,8 @@ async def checkout(
     order = Order(
         order_number=_make_order_number(),
         user_id=current_user.id,
-        status="pending",
-        payment_status="pending",
+        status=OrderStatus.PENDING,
+        payment_status=OrderPaymentStatus.PENDING,
         shipping_total=payload.shipping_total,
         tax_total=payload.tax_total,
         discount_total=payload.discount_total,
@@ -138,7 +138,10 @@ async def update_order_status(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    order.status = payload.status.lower()
+    try:
+        order.status = OrderStatus(payload.status.lower())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid order status") from exc
     db.add(
         OrderStatusHistory(
             order_id=order.id,

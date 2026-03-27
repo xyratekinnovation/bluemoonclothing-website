@@ -1,12 +1,30 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+
+class OrderStatus(str, Enum):
+    PENDING = "pending"
+    PAID = "paid"
+    CONFIRMED = "confirmed"
+    PROCESSING = "processing"
+    SHIPPED = "shipped"
+    DELIVERED = "delivered"
+    CANCELLED = "cancelled"
+
+
+class OrderPaymentStatus(str, Enum):
+    PENDING = "pending"
+    SUCCESS = "success"
+    FAILED = "failed"
+    REFUNDED = "refunded"
 
 
 class Order(Base):
@@ -17,8 +35,23 @@ class Order(Base):
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False, index=True)
-    payment_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False, index=True)
+    status: Mapped[OrderStatus] = mapped_column(
+        SAEnum(OrderStatus, name="order_status", values_callable=lambda obj: [e.value for e in obj], create_type=False),
+        default=OrderStatus.PENDING,
+        nullable=False,
+        index=True,
+    )
+    payment_status: Mapped[OrderPaymentStatus] = mapped_column(
+        SAEnum(
+            OrderPaymentStatus,
+            name="payment_status",
+            values_callable=lambda obj: [e.value for e in obj],
+            create_type=False,
+        ),
+        default=OrderPaymentStatus.PENDING,
+        nullable=False,
+        index=True,
+    )
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     discount_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     shipping_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
@@ -73,7 +106,10 @@ class OrderStatusHistory(Base):
     order_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[OrderStatus] = mapped_column(
+        SAEnum(OrderStatus, name="order_status", values_callable=lambda obj: [e.value for e in obj], create_type=False),
+        nullable=False,
+    )
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     changed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True

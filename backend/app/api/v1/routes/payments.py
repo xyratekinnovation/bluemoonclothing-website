@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_admin
 from app.db.session import get_db
-from app.models.order import Order
+from app.models.order import Order, OrderPaymentStatus, OrderStatus
 from app.models.payment import Payment
 from app.models.user import User
 from app.schemas.payment import PaymentCreate, PaymentOut, PaymentWebhook
@@ -61,13 +61,13 @@ async def payment_webhook(payload: PaymentWebhook, db: AsyncSession = Depends(ge
     order_result = await db.execute(select(Order).where(Order.id == payment.order_id))
     order = order_result.scalar_one()
     if payment.status == "success":
-        order.payment_status = "success"
-        if order.status == "pending":
-            order.status = "paid"
+        order.payment_status = OrderPaymentStatus.SUCCESS
+        if order.status == OrderStatus.PENDING:
+            order.status = OrderStatus.PAID
     elif payment.status == "failed":
-        order.payment_status = "failed"
+        order.payment_status = OrderPaymentStatus.FAILED
     elif payment.status == "refunded":
-        order.payment_status = "refunded"
+        order.payment_status = OrderPaymentStatus.REFUNDED
 
     await db.commit()
     await db.refresh(payment)
