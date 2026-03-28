@@ -71,6 +71,24 @@ export interface ApiCart {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
+export interface HeroBannerPayload {
+  desktop_url: string | null;
+  mobile_url: string | null;
+}
+
+/** API server origin without `/api/v1` — for `/uploads/...` and static assets */
+export function apiServerOrigin(): string {
+  return API_BASE.replace(/\/api\/v1\/?$/i, "");
+}
+
+export function resolvePublicAssetUrl(pathOrUrl: string | null | undefined): string | null {
+  if (!pathOrUrl) return null;
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  const origin = apiServerOrigin();
+  const p = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
+  return `${origin}${p}`;
+}
+
 function authHeaders() {
   const token = localStorage.getItem("access_token");
   return token ? { Authorization: `Bearer ${token}` } : {};

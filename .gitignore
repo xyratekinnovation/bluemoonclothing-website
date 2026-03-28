@@ -17,3 +17,7 @@
 
 .DS_Store
 Thumbs.db
+
+# User uploads (keep directory via .gitkeep)
+backend/uploads/*
+!backend/uploads/.gitkeep

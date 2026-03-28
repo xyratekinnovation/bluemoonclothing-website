@@ -7,7 +7,7 @@ import heroBanner from "@/assets/hero-banner.jpg";
 import categoryMen from "@/assets/category-men.jpg";
 import categoryWomen from "@/assets/category-women.jpg";
 import categoryKids from "@/assets/category-kids.jpg";
-import { apiGet, type ApiCategory, type ApiProduct } from "@/lib/api";
+import { apiGet, resolvePublicAssetUrl, type ApiCategory, type ApiProduct } from "@/lib/api";
 import { toCatalogProduct } from "@/types/catalog";
 
 const categories = [
@@ -34,6 +34,16 @@ const Index = () => {
     queryFn: () => apiGet<ApiProduct[]>("/products?featured=true&limit=4"),
     staleTime: 60_000,
   });
+  const { data: heroBannerApi } = useQuery({
+    queryKey: ["hero-banner"],
+    queryFn: () => apiGet<{ desktop_url: string | null; mobile_url: string | null }>("/storefront/hero-banner"),
+    staleTime: 60_000,
+  });
+
+  const heroDesktopSrc =
+    resolvePublicAssetUrl(heroBannerApi?.desktop_url ?? undefined) ?? heroBanner;
+  const heroMobileSrc =
+    resolvePublicAssetUrl(heroBannerApi?.mobile_url ?? undefined) ?? heroDesktopSrc;
 
   const displayCategories = categoriesData.length > 0 ? categoriesData.map((category) => ({
     name: category.name,
@@ -50,16 +60,19 @@ const Index = () => {
 
   return (
     <Layout>
-    {/* Hero — full-bleed background image */}
-    <section
-      className="relative overflow-hidden min-h-[70vh] md:min-h-[80vh] flex items-center bg-secondary"
-      style={{
-        backgroundImage: `url(${heroBanner})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }}
-    >
-      <div className="absolute inset-0 bg-gradient-to-b from-background/95 via-background/85 to-background/80 md:bg-gradient-to-r md:from-background md:via-background/90 md:to-background/20" aria-hidden />
+    {/* Hero — responsive image (admin: desktop + mobile uploads) */}
+    <section className="relative overflow-hidden min-h-[70vh] md:min-h-[80vh] flex items-center bg-secondary">
+      <div className="absolute inset-0 z-0">
+        <picture className="block w-full h-full min-h-[70vh] md:min-h-[80vh]">
+          <source media="(max-width: 767px)" srcSet={heroMobileSrc} />
+          <img
+            src={heroDesktopSrc}
+            alt=""
+            className="w-full h-full min-h-[70vh] md:min-h-[80vh] object-cover object-center"
+          />
+        </picture>
+      </div>
+      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-background/95 via-background/85 to-background/80 md:bg-gradient-to-r md:from-background md:via-background/90 md:to-background/20" aria-hidden />
       <div className="container relative z-10 py-12 md:py-16">
         <div className="max-w-xl animate-fade-in-left" style={{ animationDelay: "0.1s" }}>
           <p className="text-xs font-semibold tracking-[0.25em] uppercase text-primary mb-4">New Collection 2026</p>

@@ -3,7 +3,7 @@ import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard, ShoppingBag, FolderTree, Package, Users,
   CreditCard, Settings,
-  Shield, ChevronLeft, ChevronRight,
+  Shield, ChevronLeft, ChevronRight, ImageIcon,
 } from "lucide-react";
 import logo from "@/assets/bluemoon-logo.png";
 
@@ -14,6 +14,7 @@ const navItems = [
   { label: "Orders", icon: Package, path: "/dashboard/orders" },
   { label: "Customers", icon: Users, path: "/dashboard/customers" },
   { label: "Payments", icon: CreditCard, path: "/dashboard/payments" },
+  { label: "Hero banner", icon: ImageIcon, path: "/dashboard/hero-banner" },
   { label: "Settings", icon: Settings, path: "/dashboard/settings" },
   { label: "Access Control", icon: Shield, path: "/dashboard/access-control" },
 ];

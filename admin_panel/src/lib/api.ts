@@ -38,6 +38,11 @@ export interface AdminProduct {
   }>;
 }
 
+export interface HeroBannerPayload {
+  desktop_url: string | null;
+  mobile_url: string | null;
+}
+
 export interface AdminProductRow {
   id: string;
   name: string;
@@ -56,6 +61,19 @@ export interface AdminProductRow {
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
+
+/** API server origin without `/api/v1` — for `/uploads/...` URLs */
+export function apiServerOrigin(): string {
+  return API_BASE.replace(/\/api\/v1\/?$/i, "");
+}
+
+export function resolveUploadedAssetUrl(pathOrUrl: string | null | undefined): string | null {
+  if (!pathOrUrl) return null;
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  const origin = apiServerOrigin();
+  const p = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
+  return `${origin}${p}`;
+}
 
 function getAuthHeaders() {
   const token = localStorage.getItem("admin_access_token");
@@ -135,4 +153,14 @@ export async function apiDelete(path: string): Promise<void> {
     headers: getAuthHeaders(),
   });
   await throwIfNotOk(response);
+}
+
+export async function apiPostFormData<T>(path: string, formData: FormData): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: formData,
+  });
+  await throwIfNotOk(response);
+  return response.json() as Promise<T>;
 }

@@ -15,6 +15,8 @@ from app.api.v1.routes import (
     products,
     settings,
     shipping,
+    storefront,
+    uploads,
 )
 
 api_router = APIRouter()
@@ -32,3 +34,5 @@ api_router.include_router(analytics.router)
 api_router.include_router(orders.router)
 api_router.include_router(payments.router)
 api_router.include_router(products.router)
+api_router.include_router(storefront.router)
+api_router.include_router(uploads.router)

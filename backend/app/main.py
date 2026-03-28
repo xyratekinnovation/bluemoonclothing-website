@@ -1,9 +1,12 @@
 import logging
 from typing import Any
 
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 import ssl as pyssl
 
 from urllib.parse import urlparse
@@ -142,5 +145,9 @@ async def db_health():
         }
     return {"db": "error"}
 
+
+UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
