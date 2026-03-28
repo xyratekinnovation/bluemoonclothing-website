@@ -16,7 +16,6 @@ function normSize(v: { size: string | null }): string {
 const ProductPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const { addVariant } = useCart();
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
