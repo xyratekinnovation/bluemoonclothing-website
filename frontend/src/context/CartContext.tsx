@@ -1,6 +1,11 @@
-import React, { createContext, useContext, useMemo } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiDelete, apiGet, apiPatch, apiPost, type ApiCart } from "@/lib/api";
+import { BLUEMOON_AUTH_CHANGED } from "@/lib/auth-events";
+
+function readAccessToken(): string | null {
+  return localStorage.getItem("access_token");
+}
 
 export interface CartItem {
   id: string;
@@ -29,13 +34,25 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const isLoggedIn = Boolean(localStorage.getItem("access_token"));
+  const [accessToken, setAccessToken] = useState<string | null>(readAccessToken);
+  const isLoggedIn = Boolean(accessToken);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const sync = () => setAccessToken(readAccessToken());
+    window.addEventListener(BLUEMOON_AUTH_CHANGED, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(BLUEMOON_AUTH_CHANGED, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
 
   const { data: cart, isLoading } = useQuery({
     queryKey: ["cart"],
     queryFn: () => apiGet<ApiCart>("/cart", true),
     enabled: isLoggedIn,
+    staleTime: 30_000,
     retry: false,
   });
 

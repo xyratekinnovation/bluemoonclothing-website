@@ -1,8 +1,14 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { toast } from "@/components/ui/sonner";
 import { apiLogin, apiRegister } from "@/lib/api";
+import { notifyAuthChanged } from "@/lib/auth-events";
+
+function safeReturnTo(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/account";
+  return raw;
+}
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -11,6 +17,11 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const stateFrom = (location.state as { from?: { pathname: string; search?: string } })?.from;
+  const fromState = stateFrom ? `${stateFrom.pathname}${stateFrom.search ?? ""}` : null;
+  const returnTo = safeReturnTo(searchParams.get("returnTo") || fromState);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,8 +30,9 @@ export default function RegisterPage() {
       await apiRegister({ name, email, password, phone: phone || undefined });
       const tokens = await apiLogin(email, password);
       localStorage.setItem("access_token", tokens.access_token);
+      notifyAuthChanged();
       toast.success("Account created");
-      navigate("/account", { replace: true });
+      navigate(returnTo, { replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Registration failed");
     } finally {

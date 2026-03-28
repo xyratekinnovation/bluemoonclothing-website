@@ -24,13 +24,15 @@ const features = [
 ];
 
 const Index = () => {
-  const { data: categoriesData = [] } = useQuery({
+  const { data: categoriesData = [], isPending: categoriesPending } = useQuery({
     queryKey: ["categories"],
     queryFn: () => apiGet<ApiCategory[]>("/categories"),
+    staleTime: 120_000,
   });
-  const { data: featuredProducts = [] } = useQuery({
+  const { data: featuredProducts = [], isPending: featuredPending } = useQuery({
     queryKey: ["products", "featured"],
     queryFn: () => apiGet<ApiProduct[]>("/products?featured=true&limit=4"),
+    staleTime: 60_000,
   });
 
   const displayCategories = categoriesData.length > 0 ? categoriesData.map((category) => ({
@@ -48,10 +50,18 @@ const Index = () => {
 
   return (
     <Layout>
-    {/* Hero */}
-    <section className="relative overflow-hidden bg-secondary">
-      <div className="container grid md:grid-cols-2 items-center min-h-[70vh] md:min-h-[80vh] gap-8 py-12 md:py-0">
-        <div className="z-10 animate-fade-in-left" style={{ animationDelay: "0.1s" }}>
+    {/* Hero — full-bleed background image */}
+    <section
+      className="relative overflow-hidden min-h-[70vh] md:min-h-[80vh] flex items-center bg-secondary"
+      style={{
+        backgroundImage: `url(${heroBanner})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      <div className="absolute inset-0 bg-gradient-to-b from-background/95 via-background/85 to-background/80 md:bg-gradient-to-r md:from-background md:via-background/90 md:to-background/20" aria-hidden />
+      <div className="container relative z-10 py-12 md:py-16">
+        <div className="max-w-xl animate-fade-in-left" style={{ animationDelay: "0.1s" }}>
           <p className="text-xs font-semibold tracking-[0.25em] uppercase text-primary mb-4">New Collection 2026</p>
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-tight text-foreground mb-6">
             Every Fit Feels<br />
@@ -72,9 +82,6 @@ const Index = () => {
             </Link>
           </div>
         </div>
-        <div className="relative animate-fade-in hidden md:block" style={{ animationDelay: "0.3s" }}>
-          <img src={heroBanner} alt="Bluemoon Collection" className="w-full h-auto rounded-lg shadow-premium" width={1920} height={1080} />
-        </div>
       </div>
     </section>
 
@@ -86,23 +93,27 @@ const Index = () => {
           <p className="text-muted-foreground text-sm">Find your perfect fit</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
-          {displayCategories.map((cat) => (
-            <Link
-              key={cat.slug}
-              to={`/category/${cat.slug}`}
-              className="group relative aspect-[4/3] rounded-lg overflow-hidden"
-            >
-              <img src={cat.image} alt={cat.name} loading="lazy" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-              <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 to-transparent" />
-              <div className="absolute inset-0 border-2 border-transparent group-hover:border-gold rounded-lg transition-colors duration-300" />
-              <div className="absolute bottom-6 left-6">
-                <h3 className="font-serif text-2xl text-background mb-1">{cat.name}</h3>
-                <span className="text-xs text-gold font-medium tracking-wider uppercase inline-flex items-center gap-1">
-                  Explore <ArrowRight className="w-3 h-3" />
-                </span>
-              </div>
-            </Link>
-          ))}
+          {categoriesPending
+            ? Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="aspect-[4/3] rounded-lg bg-muted animate-pulse" />
+              ))
+            : displayCategories.map((cat) => (
+                <Link
+                  key={cat.slug}
+                  to={`/category/${cat.slug}`}
+                  className="group relative aspect-[4/3] rounded-lg overflow-hidden"
+                >
+                  <img src={cat.image} alt={cat.name} loading="lazy" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 to-transparent" />
+                  <div className="absolute inset-0 border-2 border-transparent group-hover:border-gold rounded-lg transition-colors duration-300" />
+                  <div className="absolute bottom-6 left-6">
+                    <h3 className="font-serif text-2xl text-background mb-1">{cat.name}</h3>
+                    <span className="text-xs text-gold font-medium tracking-wider uppercase inline-flex items-center gap-1">
+                      Explore <ArrowRight className="w-3 h-3" />
+                    </span>
+                  </div>
+                </Link>
+              ))}
         </div>
       </div>
     </section>
@@ -120,11 +131,19 @@ const Index = () => {
           </Link>
         </div>
         <div className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-4 md:overflow-visible">
-          {featuredProducts.map((p) => (
-            <div key={p.id} className="min-w-[52vw] sm:min-w-[34vw] md:min-w-0">
-              <ProductCard product={toCatalogProduct(p)} />
-            </div>
-          ))}
+          {featuredPending
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="min-w-[52vw] sm:min-w-[34vw] md:min-w-0 space-y-3">
+                  <div className="aspect-[4/5] rounded-lg bg-muted animate-pulse" />
+                  <div className="h-4 w-2/3 bg-muted rounded animate-pulse" />
+                  <div className="h-4 w-1/3 bg-muted rounded animate-pulse" />
+                </div>
+              ))
+            : featuredProducts.map((p) => (
+                <div key={p.id} className="min-w-[52vw] sm:min-w-[34vw] md:min-w-0">
+                  <ProductCard product={toCatalogProduct(p)} />
+                </div>
+              ))}
         </div>
       </div>
     </section>

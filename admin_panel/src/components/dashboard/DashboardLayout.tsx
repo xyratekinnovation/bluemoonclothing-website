@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
+import GlobalFetchBar from "@/components/GlobalFetchBar";
 import DashboardSidebar from "./DashboardSidebar";
 import DashboardHeader from "./DashboardHeader";
 
@@ -9,6 +10,7 @@ export default function DashboardLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      <GlobalFetchBar />
       <DashboardSidebar
         collapsed={collapsed}
         onToggle={() => setCollapsed(!collapsed)}

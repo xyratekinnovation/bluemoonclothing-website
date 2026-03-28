@@ -16,18 +16,20 @@ const CategoryPage = () => {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState(sortOptions[0]);
 
-  const { data: categories = [] } = useQuery({
+  const { data: categories = [], isPending: categoriesPending } = useQuery({
     queryKey: ["categories"],
     queryFn: () => apiGet<ApiCategory[]>("/categories"),
+    staleTime: 120_000,
   });
   const activeCategory = categories.find((category) => category.slug === slug);
-  const { data: products = [] } = useQuery({
+  const { data: products = [], isPending: productsPending } = useQuery({
     queryKey: ["products", slug],
     queryFn: () =>
       activeCategory
         ? apiGet<ApiProduct[]>(`/products?category_id=${activeCategory.id}&limit=100`)
         : apiGet<ApiProduct[]>("/products?limit=100"),
     enabled: Boolean(activeCategory) || !slug,
+    staleTime: 60_000,
   });
 
   const categoryName = slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : "All";
@@ -37,6 +39,25 @@ const CategoryPage = () => {
 
   if (sortBy === "Price: Low to High") filtered = [...filtered].sort((a, b) => a.price - b.price);
   if (sortBy === "Price: High to Low") filtered = [...filtered].sort((a, b) => b.price - a.price);
+
+  if (categoriesPending || productsPending) {
+    return (
+      <Layout>
+        <div className="container py-8 md:py-12">
+          <div className="h-4 w-40 bg-muted rounded animate-pulse mb-6" />
+          <div className="h-10 w-64 bg-muted rounded animate-pulse mb-8" />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="space-y-3">
+                <div className="aspect-[4/5] rounded-lg bg-muted animate-pulse" />
+                <div className="h-4 w-2/3 bg-muted rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>

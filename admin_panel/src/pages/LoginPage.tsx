@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromPath = (location.state as { from?: { pathname: string } })?.from?.pathname;
+
+  if (localStorage.getItem("admin_access_token")) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +36,8 @@ export default function LoginPage() {
         return;
       }
       toast({ title: "Signed in" });
-      navigate("/", { replace: true });
+      const target = fromPath && fromPath.startsWith("/dashboard") ? fromPath : "/dashboard";
+      navigate(target, { replace: true });
     } catch (err) {
       toast({
         title: "Login failed",

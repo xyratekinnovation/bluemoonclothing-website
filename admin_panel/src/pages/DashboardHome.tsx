@@ -19,6 +19,7 @@ export default function DashboardHome() {
   const { data } = useQuery({
     queryKey: ["analytics-overview"],
     queryFn: () => apiGet<any>("/analytics/overview"),
+    staleTime: 60_000,
   });
   const metrics = data?.metrics;
   const recentOrdersData = data?.recent_orders ?? [];

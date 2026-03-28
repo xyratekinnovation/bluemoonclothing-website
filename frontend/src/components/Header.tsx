@@ -1,19 +1,31 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ShoppingBag, Menu, X, Search, User } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCart } from "@/context/CartContext";
 import logo from "@/assets/logo.png";
 import { apiGet, type ApiCategory } from "@/lib/api";
+import { BLUEMOON_AUTH_CHANGED } from "@/lib/auth-events";
+
+function useAccessTokenPresent() {
+  const [hasToken, setHasToken] = useState(() => Boolean(localStorage.getItem("access_token")));
+  useEffect(() => {
+    const sync = () => setHasToken(Boolean(localStorage.getItem("access_token")));
+    window.addEventListener(BLUEMOON_AUTH_CHANGED, sync);
+    return () => window.removeEventListener(BLUEMOON_AUTH_CHANGED, sync);
+  }, []);
+  return hasToken;
+}
 
 const Header = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeParent, setActiveParent] = useState<string | null>(null);
   const { totalItems } = useCart();
-  const isLoggedIn = Boolean(localStorage.getItem("access_token"));
+  const isLoggedIn = useAccessTokenPresent();
   const { data: categories = [] } = useQuery({
-    queryKey: ["header-categories"],
+    queryKey: ["categories"],
     queryFn: () => apiGet<ApiCategory[]>("/categories?active_only=true"),
+    staleTime: 120_000,
   });
 
   const parentCategories = useMemo(
@@ -91,81 +103,86 @@ const Header = () => {
         </div>
       </div>
 
-      {/* Separate menu bar (desktop) */}
+      {/* Separate menu bar (desktop): one hover zone so moving to dropdown does not close it */}
       <div className="hidden md:block bg-background border-b border-border">
         <div className="container relative">
-          <nav className="flex items-center gap-10 h-12" onMouseLeave={() => setActiveParent(null)}>
-            <Link to="/" className="text-sm font-semibold text-foreground hover:text-primary transition-colors">
-              Home
-            </Link>
-            {topParents.map((parent) => (
-              <div key={parent.id} className="h-full flex items-center">
-                <Link
-                  to={`/category/${parent.slug}`}
+          <div className="relative" onMouseLeave={() => setActiveParent(null)}>
+            <nav className="flex items-center gap-10 h-12">
+              <Link to="/" className="text-sm font-semibold text-foreground hover:text-primary transition-colors">
+                Home
+              </Link>
+              {topParents.map((parent) => (
+                <div
+                  key={parent.id}
+                  className="h-full flex items-center"
                   onMouseEnter={() => setActiveParent(parent.id)}
-                  className={`text-sm font-semibold transition-colors ${
-                    activeParent === parent.id ? "text-primary" : "text-foreground hover:text-primary"
-                  }`}
                 >
-                  {parent.name}
-                </Link>
-              </div>
-            ))}
-          </nav>
+                  <Link
+                    to={`/category/${parent.slug}`}
+                    className={`text-sm font-semibold transition-colors ${
+                      activeParent === parent.id ? "text-primary" : "text-foreground hover:text-primary"
+                    }`}
+                  >
+                    {parent.name}
+                  </Link>
+                </div>
+              ))}
+            </nav>
 
-          {/* Hover dropdown (absolute overlay, does NOT push layout) */}
-          {activeParent && (
-            <div className="absolute left-0 right-0 top-full z-50">
-              <div className="mt-2 rounded-lg border border-border bg-background shadow-lg overflow-hidden">
-                <div className="px-6 py-4 flex items-center justify-between border-b border-border">
-                  {(() => {
-                    const parent = topParents.find((p) => p.id === activeParent);
-                    return (
-                      <>
-                        <div className="text-sm font-semibold text-foreground">{parent?.name}</div>
-                        {parent ? (
-                          <Link to={`/category/${parent.slug}`} className="text-xs text-primary hover:underline">
-                            View all
-                          </Link>
-                        ) : null}
-                      </>
-                    );
-                  })()}
-                </div>
-                <div className="p-6">
-                  {(() => {
-                    const children = categoryChildrenMap.get(activeParent) ?? [];
-                    if (children.length === 0) {
-                      return <div className="text-sm text-muted-foreground">No categories yet.</div>;
-                    }
-                    const cols = 4;
-                    const perCol = Math.ceil(children.length / cols);
-                    return (
-                      <div className="grid grid-cols-4 gap-8">
-                        {Array.from({ length: cols }).map((_, i) => {
-                          const chunk = children.slice(i * perCol, i * perCol + perCol);
-                          if (chunk.length === 0) return <div key={i} />;
-                          return (
-                            <div key={i} className="space-y-2">
-                              {chunk.map((c) => (
-                                <Link
-                                  key={c.id}
-                                  to={`/category/${c.slug}`}
-                                  className="block text-sm text-muted-foreground hover:text-primary transition-colors"
-                                >
-                                  {c.name}
-                                </Link>
-                              ))}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
+            {/* Flush under nav (no gap) — avoids dropdown disappearing while moving the pointer */}
+            {activeParent && (
+              <div className="absolute left-0 right-0 top-full z-50 pt-0">
+                <div className="rounded-b-lg border border-t-0 border-border bg-background shadow-lg overflow-hidden">
+                  <div className="px-6 py-4 flex items-center justify-between border-b border-border">
+                    {(() => {
+                      const parent = topParents.find((p) => p.id === activeParent);
+                      return (
+                        <>
+                          <div className="text-sm font-semibold text-foreground">{parent?.name}</div>
+                          {parent ? (
+                            <Link to={`/category/${parent.slug}`} className="text-xs text-primary hover:underline">
+                              View all
+                            </Link>
+                          ) : null}
+                        </>
+                      );
+                    })()}
+                  </div>
+                  <div className="p-6">
+                    {(() => {
+                      const children = categoryChildrenMap.get(activeParent) ?? [];
+                      if (children.length === 0) {
+                        return <div className="text-sm text-muted-foreground">No categories yet.</div>;
+                      }
+                      const cols = 4;
+                      const perCol = Math.ceil(children.length / cols);
+                      return (
+                        <div className="grid grid-cols-4 gap-8">
+                          {Array.from({ length: cols }).map((_, i) => {
+                            const chunk = children.slice(i * perCol, i * perCol + perCol);
+                            if (chunk.length === 0) return <div key={i} />;
+                            return (
+                              <div key={i} className="space-y-2">
+                                {chunk.map((c) => (
+                                  <Link
+                                    key={c.id}
+                                    to={`/category/${c.slug}`}
+                                    className="block text-sm text-muted-foreground hover:text-primary transition-colors"
+                                  >
+                                    {c.name}
+                                  </Link>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

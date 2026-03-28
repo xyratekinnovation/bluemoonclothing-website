@@ -1,14 +1,25 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { toast } from "@/components/ui/sonner";
 import { apiLogin } from "@/lib/api";
+import { notifyAuthChanged } from "@/lib/auth-events";
+
+function safeReturnTo(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/account";
+  return raw;
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const stateFrom = (location.state as { from?: { pathname: string; search?: string } })?.from;
+  const fromState = stateFrom ? `${stateFrom.pathname}${stateFrom.search ?? ""}` : null;
+  const returnTo = safeReturnTo(searchParams.get("returnTo") || fromState);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,8 +27,9 @@ export default function LoginPage() {
     try {
       const tokens = await apiLogin(email, password);
       localStorage.setItem("access_token", tokens.access_token);
+      notifyAuthChanged();
       toast.success("Signed in");
-      navigate("/account", { replace: true });
+      navigate(returnTo, { replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Login failed");
     } finally {

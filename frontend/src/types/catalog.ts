@@ -9,6 +9,8 @@ export interface CatalogProduct {
   images: string[];
   category: string;
   sizes: string[];
+  /** Distinct non-empty colors from variants (for PDP). */
+  colors: string[];
   description: string;
   details: string[];
   badge?: string;
@@ -20,6 +22,14 @@ export function toCatalogProduct(product: ApiProduct, categorySlug = "all"): Cat
     .sort((a, b) => a.sort_order - b.sort_order)
     .map((image) => image.image_url);
 
+  const colors = Array.from(
+    new Set(
+      product.variants
+        .map((v) => (v.color ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+
   return {
     id: product.id,
     name: product.name,
@@ -28,7 +38,8 @@ export function toCatalogProduct(product: ApiProduct, categorySlug = "all"): Cat
     image: images[0] ?? "/placeholder.svg",
     images: images.length > 0 ? images : ["/placeholder.svg"],
     category: categorySlug,
-    sizes: product.variants.map((variant) => variant.size).filter(Boolean) as string[],
+    sizes: Array.from(new Set(product.variants.map((variant) => variant.size).filter(Boolean) as string[])),
+    colors,
     description: product.description ?? "",
     details: product.variants.map((variant) => [variant.sku, variant.color].filter(Boolean).join(" - ")),
     badge: product.badge ?? undefined,

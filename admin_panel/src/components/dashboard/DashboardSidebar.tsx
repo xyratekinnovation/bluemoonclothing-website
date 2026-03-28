@@ -1,21 +1,21 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard, ShoppingBag, FolderTree, Package, Users,
   CreditCard, Settings,
-  Shield, ChevronLeft, ChevronRight, Crown,
+  Shield, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import logo from "@/assets/bluemoon-logo.png";
 
 const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard, path: "/" },
-  { label: "Products", icon: ShoppingBag, path: "/products" },
-  { label: "Categories", icon: FolderTree, path: "/categories" },
-  { label: "Orders", icon: Package, path: "/orders" },
-  { label: "Customers", icon: Users, path: "/customers" },
-  { label: "Payments", icon: CreditCard, path: "/payments" },
-  { label: "Settings", icon: Settings, path: "/settings" },
-  { label: "Access Control", icon: Shield, path: "/access-control" },
+  { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
+  { label: "Products", icon: ShoppingBag, path: "/dashboard/products" },
+  { label: "Categories", icon: FolderTree, path: "/dashboard/categories" },
+  { label: "Orders", icon: Package, path: "/dashboard/orders" },
+  { label: "Customers", icon: Users, path: "/dashboard/customers" },
+  { label: "Payments", icon: CreditCard, path: "/dashboard/payments" },
+  { label: "Settings", icon: Settings, path: "/dashboard/settings" },
+  { label: "Access Control", icon: Shield, path: "/dashboard/access-control" },
 ];
 
 interface DashboardSidebarProps {
@@ -26,8 +26,6 @@ interface DashboardSidebarProps {
 }
 
 export default function DashboardSidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: DashboardSidebarProps) {
-  const location = useLocation();
-
   const sidebarContent = (
     <div className={`flex flex-col h-full bg-sidebar text-sidebar-foreground transition-all duration-300 ${collapsed ? "w-[72px]" : "w-64"}`}>
       {/* Logo */}
@@ -44,22 +42,30 @@ export default function DashboardSidebar({ collapsed, onToggle, mobileOpen, onMo
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const Icon = item.icon;
           return (
             <NavLink
               key={item.path}
               to={item.path}
+              end={item.path === "/dashboard"}
               onClick={onMobileClose}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group
                 ${isActive
                   ? "bg-sidebar-accent text-sidebar-primary"
                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 }
-                ${collapsed ? "justify-center" : ""}
-              `}
+                ${collapsed ? "justify-center" : ""}`
+              }
             >
-              <item.icon className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? "text-sidebar-primary" : "text-sidebar-muted group-hover:text-sidebar-accent-foreground"}`} />
-              {!collapsed && <span className="animate-fade-in">{item.label}</span>}
+              {({ isActive }) => (
+                <>
+                  <Icon
+                    className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? "text-sidebar-primary" : "text-sidebar-muted group-hover:text-sidebar-accent-foreground"}`}
+                  />
+                  {!collapsed && <span className="animate-fade-in">{item.label}</span>}
+                </>
+              )}
             </NavLink>
           );
         })}
