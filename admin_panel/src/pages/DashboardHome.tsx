@@ -1,4 +1,4 @@
-import { DollarSign, ShoppingCart, Users, CreditCard, AlertTriangle, Star } from "lucide-react";
+import { DollarSign, ShoppingCart, Users, CreditCard, AlertTriangle, Star, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import MetricCard from "@/components/dashboard/MetricCard";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ const statusColor = (s: string) => {
 };
 
 export default function DashboardHome() {
-  const { data } = useQuery({
+  const { data, isPending } = useQuery({
     queryKey: ["analytics-overview"],
     queryFn: () => apiGet<any>("/analytics/overview"),
     staleTime: 60_000,
@@ -25,6 +25,26 @@ export default function DashboardHome() {
   const recentOrdersData = data?.recent_orders ?? [];
   const lowStockData = data?.low_stock ?? [];
   const topProductsData = data?.top_products ?? [];
+
+  if (isPending) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold">Dashboard</h2>
+          <p className="text-muted-foreground text-sm">Loading your overview…</p>
+        </div>
+        <div className="flex flex-col items-center justify-center py-20 gap-4 rounded-xl border border-border bg-card">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" aria-label="Loading" />
+          <p className="text-sm text-muted-foreground">Fetching analytics and recent activity</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-28 rounded-xl bg-muted animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

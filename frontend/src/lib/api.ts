@@ -83,12 +83,26 @@ export function apiServerOrigin(): string {
   return API_BASE.replace(/\/api\/v1\/?$/i, "");
 }
 
-export function resolvePublicAssetUrl(pathOrUrl: string | null | undefined): string | null {
+/**
+ * Resolves API/static paths to full URLs. Optional cacheBust (e.g. React Query dataUpdatedAt)
+ * avoids stale browser cache when images are replaced at the same path.
+ */
+export function resolvePublicAssetUrl(
+  pathOrUrl: string | null | undefined,
+  cacheBust?: number | string,
+): string | null {
   if (!pathOrUrl) return null;
-  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
-  const origin = apiServerOrigin();
-  const p = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
-  return `${origin}${p}`;
+  let base: string;
+  if (/^https?:\/\//i.test(pathOrUrl)) {
+    base = pathOrUrl;
+  } else {
+    const origin = apiServerOrigin();
+    const p = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
+    base = `${origin}${p}`;
+  }
+  if (cacheBust == null || String(cacheBust) === "") return base;
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}v=${encodeURIComponent(String(cacheBust))}`;
 }
 
 function authHeaders() {

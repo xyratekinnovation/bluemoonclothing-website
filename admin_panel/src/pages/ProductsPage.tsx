@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, Loader2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -379,16 +379,17 @@ export default function ProductsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: productsData = [] } = useQuery({
+  const { data: productsData = [], isPending: productsPending } = useQuery({
     queryKey: ["admin-products"],
     queryFn: () => apiGet<AdminProductRow[]>("/products/admin-list?limit=100"),
     staleTime: 30_000,
   });
-  const { data: categories = [] } = useQuery({
+  const { data: categories = [], isPending: categoriesPending } = useQuery({
     queryKey: ["admin-categories"],
     queryFn: () => apiGet<AdminCategory[]>("/categories?active_only=false"),
     staleTime: 60_000,
   });
+  const productsTableLoading = productsPending || categoriesPending;
 
   const products = useMemo<ProductRow[]>(
     () =>
@@ -621,7 +622,15 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(p => (
+              {productsTableLoading ? (
+                <tr>
+                  <td colSpan={7} className="p-16 text-center">
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" aria-hidden />
+                    <p className="text-sm text-muted-foreground mt-3">Loading products…</p>
+                  </td>
+                </tr>
+              ) : (
+                filtered.map(p => (
                 <tr key={p.id} className="border-b border-border last:border-0 hover:bg-surface-hover transition-colors">
                   <td className="p-4">
                     <div>
@@ -664,7 +673,8 @@ export default function ProductsPage() {
                     </DropdownMenu>
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>

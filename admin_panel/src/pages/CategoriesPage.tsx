@@ -67,6 +67,8 @@ function CategoryTreeRow({
   onPatch,
   onEdit,
   onDelete,
+  patchingId,
+  resolveThumbUrl,
 }: {
   cat: AdminCategory;
   depth: number;
@@ -74,9 +76,12 @@ function CategoryTreeRow({
   onPatch: (id: string, payload: Record<string, unknown>) => void;
   onEdit: (c: AdminCategory) => void;
   onDelete: (id: string) => void;
+  patchingId: string | null;
+  resolveThumbUrl: (path: string | null | undefined) => string | null;
 }) {
   const kids = childrenOf(cat.id, categoriesData);
   const leaf = !categoryHasChildren(cat.id, categoriesData);
+  const rowBusy = patchingId === cat.id;
 
   return (
     <>
@@ -87,7 +92,7 @@ function CategoryTreeRow({
         <div className="flex items-center gap-3 min-w-0 flex-1 basis-[200px]">
           {cat.image_url ? (
             <img
-              src={resolveUploadedAssetUrl(cat.image_url) ?? ""}
+              src={resolveThumbUrl(cat.image_url) ?? ""}
               alt=""
               className="w-10 h-10 rounded-md object-cover bg-muted shrink-0"
             />
@@ -103,9 +108,14 @@ function CategoryTreeRow({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3 shrink-0">
+          {rowBusy ? <Loader2 className="w-4 h-4 shrink-0 animate-spin text-primary" aria-label="Saving" /> : null}
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">Active</span>
-            <Switch checked={cat.is_active} onCheckedChange={(v) => onPatch(cat.id, { is_active: v })} />
+            <Switch
+              checked={cat.is_active}
+              onCheckedChange={(v) => onPatch(cat.id, { is_active: v })}
+              disabled={rowBusy}
+            />
           </div>
           {leaf ? (
             <div className="flex items-center gap-2">
@@ -115,7 +125,7 @@ function CategoryTreeRow({
               <Switch
                 checked={cat.show_on_home}
                 onCheckedChange={(v) => onPatch(cat.id, { show_on_home: v })}
-                disabled={!cat.is_active}
+                disabled={!cat.is_active || rowBusy}
               />
             </div>
           ) : (
@@ -142,6 +152,8 @@ function CategoryTreeRow({
           onPatch={onPatch}
           onEdit={onEdit}
           onDelete={onDelete}
+          patchingId={patchingId}
+          resolveThumbUrl={resolveThumbUrl}
         />
       ))}
     </>
@@ -155,15 +167,16 @@ export default function CategoriesPage() {
   const [formHome, setFormHome] = useState(true);
   const [imagePath, setImagePath] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [patchingId, setPatchingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: categoriesData = [] } = useQuery({
+  const { data: categoriesData = [], isPending: categoriesPending, dataUpdatedAt: categoriesDU } = useQuery({
     queryKey: ["admin-categories"],
     queryFn: () => apiGet<AdminCategory[]>("/categories?active_only=false"),
   });
 
-  const mutateCategory = useMutation({
+  const patchMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Record<string, unknown> }) =>
       apiPatch<AdminCategory>(`/categories/${id}`, payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-categories"] }),
@@ -233,7 +246,7 @@ export default function CategoriesPage() {
     }
     try {
       if (editCat) {
-        await mutateCategory.mutateAsync({
+        await patchMutation.mutateAsync({
           id: editCat.id,
           payload: { name, slug, parent_id, image_url, is_active: formActive, show_on_home: formHome },
         });
@@ -261,10 +274,19 @@ export default function CategoriesPage() {
     }
   };
 
-  const previewUrl = resolveUploadedAssetUrl(imagePath);
+  const previewUrl = resolveUploadedAssetUrl(imagePath, categoriesDU);
 
-  const patchCategory = (id: string, payload: Record<string, unknown>) =>
-    mutateCategory.mutate({ id, payload });
+  const resolveThumbUrl = (path: string | null | undefined) => resolveUploadedAssetUrl(path, categoriesDU);
+
+  const patchCategory = (id: string, payload: Record<string, unknown>) => {
+    setPatchingId(id);
+    patchMutation.mutate(
+      { id, payload },
+      {
+        onSettled: () => setPatchingId(null),
+      },
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -291,21 +313,29 @@ export default function CategoriesPage() {
             categories in the home “Top categories” strip — turn off to reduce clutter without deactivating.
           </p>
         </div>
-        {childrenOf(null, categoriesData).map((root) => (
-          <CategoryTreeRow
-            key={root.id}
-            cat={root}
-            depth={0}
-            categoriesData={categoriesData}
-            onPatch={patchCategory}
-            onEdit={(c) => {
-              setEditCat(c);
-              setDialogOpen(true);
-            }}
-            onDelete={handleDelete}
-          />
-        ))}
-        {categoriesData.length === 0 ? (
+        {categoriesPending ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-10 h-10 animate-spin text-primary" aria-label="Loading categories" />
+          </div>
+        ) : (
+          childrenOf(null, categoriesData).map((root) => (
+            <CategoryTreeRow
+              key={root.id}
+              cat={root}
+              depth={0}
+              categoriesData={categoriesData}
+              onPatch={patchCategory}
+              onEdit={(c) => {
+                setEditCat(c);
+                setDialogOpen(true);
+              }}
+              onDelete={handleDelete}
+              patchingId={patchingId}
+              resolveThumbUrl={resolveThumbUrl}
+            />
+          ))
+        )}
+        {!categoriesPending && categoriesData.length === 0 ? (
           <p className="p-6 text-sm text-muted-foreground text-center">No categories yet.</p>
         ) : null}
       </div>

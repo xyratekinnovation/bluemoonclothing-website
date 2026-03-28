@@ -16,7 +16,7 @@ const CategoryPage = () => {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState(sortOptions[0]);
 
-  const { data: categories = [], isPending: categoriesPending } = useQuery({
+  const { data: categories = [], isPending: categoriesPending, dataUpdatedAt: categoriesDU } = useQuery({
     queryKey: ["categories"],
     queryFn: () => apiGet<ApiCategory[]>("/categories"),
     staleTime: 120_000,
@@ -51,7 +51,7 @@ const CategoryPage = () => {
 
   const categoryName =
     activeCategory?.name ?? (slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : "All");
-  let filtered = products.map((product) => toCatalogProduct(product, slug ?? "all"));
+  let filtered = products.map((product) => toCatalogProduct(product, slug ?? "all", productsDU));
 
   if (selectedSize) filtered = filtered.filter((p) => p.sizes.includes(selectedSize));
 
@@ -94,7 +94,7 @@ const CategoryPage = () => {
             </h2>
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible">
               {childCategories.map((c) => {
-                const img = resolvePublicAssetUrl(c.image_url ?? undefined);
+                const img = resolvePublicAssetUrl(c.image_url ?? undefined, categoriesDU);
                 return (
                   <Link
                     key={c.id}

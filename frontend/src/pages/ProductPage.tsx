@@ -26,6 +26,7 @@ const ProductPage = () => {
     data: apiProduct,
     isPending: productPending,
     isError: productError,
+    dataUpdatedAt: productDU,
   } = useQuery({
     queryKey: ["product", id],
     queryFn: () => apiGet<ApiProduct>(`/products/${id}`),
@@ -33,8 +34,8 @@ const ProductPage = () => {
     staleTime: 60_000,
   });
   const productCategory = categories.find((category) => category.id === apiProduct?.category_id)?.slug ?? "all";
-  const product = apiProduct ? toCatalogProduct(apiProduct, productCategory) : undefined;
-  const { data: relatedApi = [], isPending: relatedPending } = useQuery({
+  const product = apiProduct ? toCatalogProduct(apiProduct, productCategory, productDU) : undefined;
+  const { data: relatedApi = [], isPending: relatedPending, dataUpdatedAt: relatedDU } = useQuery({
     queryKey: ["related", productCategory, id],
     queryFn: () =>
       apiProduct?.category_id
@@ -145,7 +146,7 @@ const ProductPage = () => {
   const related = relatedApi
     .filter((relatedProduct) => relatedProduct.id !== apiProduct.id)
     .slice(0, 4)
-    .map((relatedProduct) => toCatalogProduct(relatedProduct, productCategory));
+    .map((relatedProduct) => toCatalogProduct(relatedProduct, productCategory, relatedDU));
 
   const handleAddToCart = () => {
     if (!selectedSize) {

@@ -29,26 +29,26 @@ const features = [
 ];
 
 const Index = () => {
-  const { data: categoriesData = [], isPending: categoriesPending } = useQuery({
+  const { data: categoriesData = [], isPending: categoriesPending, dataUpdatedAt: categoriesDU } = useQuery({
     queryKey: ["categories"],
     queryFn: () => apiGet<ApiCategory[]>("/categories"),
     staleTime: 120_000,
   });
-  const { data: featuredProducts = [], isPending: featuredPending } = useQuery({
+  const { data: featuredProducts = [], isPending: featuredPending, dataUpdatedAt: featuredDU } = useQuery({
     queryKey: ["products", "featured"],
     queryFn: () => apiGet<ApiProduct[]>("/products?featured=true&limit=4"),
     staleTime: 60_000,
   });
-  const { data: heroBannerApi } = useQuery({
+  const { data: heroBannerApi, isPending: heroPending, dataUpdatedAt: heroDU } = useQuery({
     queryKey: ["hero-banner"],
     queryFn: () => apiGet<{ desktop_url: string | null; mobile_url: string | null }>("/storefront/hero-banner"),
     staleTime: 60_000,
   });
 
   const heroDesktopSrc =
-    resolvePublicAssetUrl(heroBannerApi?.desktop_url ?? undefined) ?? heroBanner;
+    resolvePublicAssetUrl(heroBannerApi?.desktop_url ?? undefined, heroDU) ?? heroBanner;
   const heroMobileSrc =
-    resolvePublicAssetUrl(heroBannerApi?.mobile_url ?? undefined) ?? heroDesktopSrc;
+    resolvePublicAssetUrl(heroBannerApi?.mobile_url ?? undefined, heroDU) ?? heroDesktopSrc;
 
   const shopByMainCategories = useMemo(() => {
     return MAIN_SHOP_SLUGS.map((slug) => {
@@ -56,7 +56,7 @@ const Index = () => {
         (c) => c.slug.toLowerCase() === slug && c.parent_id === null,
       );
       if (!cat) return null;
-      const uploaded = resolvePublicAssetUrl(cat.image_url ?? undefined);
+      const uploaded = resolvePublicAssetUrl(cat.image_url ?? undefined, categoriesDU);
       return {
         id: cat.id,
         name: cat.name,
@@ -64,7 +64,7 @@ const Index = () => {
         imageSrc: uploaded ?? fallbackMainCategoryImage(slug),
       };
     }).filter(Boolean) as { id: string; name: string; slug: string; imageSrc: string }[];
-  }, [categoriesData]);
+  }, [categoriesData, categoriesDU]);
 
   /** Leaf categories only; admin can turn off “Home row” per leaf without deactivating the category. */
   const topSubCategories = useMemo(() => {
@@ -81,24 +81,28 @@ const Index = () => {
         id: c.id,
         name: c.name,
         slug: c.slug,
-        imageSrc: resolvePublicAssetUrl(c.image_url ?? undefined),
+        imageSrc: resolvePublicAssetUrl(c.image_url ?? undefined, categoriesDU),
       }));
-  }, [categoriesData]);
+  }, [categoriesData, categoriesDU]);
 
   return (
     <Layout>
     {/* Hero: full-bleed cover reads sharper than letterboxed contain; anchor right+top for wide art with subject on the right */}
     <section className="relative overflow-hidden min-h-[70vh] md:min-h-[80vh] flex items-center bg-secondary">
       <div className="absolute inset-0 z-0 isolate overflow-hidden">
-        <picture className="absolute inset-0 block">
-          <source media="(max-width: 767px)" srcSet={heroMobileSrc} />
-          <img
-            src={heroDesktopSrc}
-            alt=""
-            fetchPriority="high"
-            className="hero-banner-media absolute inset-0 h-full w-full object-cover max-md:object-[center_top] md:object-[right_top]"
-          />
-        </picture>
+        {heroPending ? (
+          <div className="absolute inset-0 bg-muted animate-pulse" aria-hidden />
+        ) : (
+          <picture className="absolute inset-0 block">
+            <source media="(max-width: 767px)" srcSet={heroMobileSrc} />
+            <img
+              src={heroDesktopSrc}
+              alt=""
+              fetchPriority="high"
+              className="hero-banner-media absolute inset-0 h-full w-full object-cover max-md:object-[center_top] md:object-[right_top]"
+            />
+          </picture>
+        )}
       </div>
       {/* Mobile: scrim behind copy; long soft falloff avoids a harsh band over the photo */}
       <div
@@ -196,7 +200,7 @@ const Index = () => {
     </section>
 
     {/* Top categories — subcategories (under Men / Women / Kids) */}
-    {topSubCategories.length > 0 && (
+    {(categoriesPending || topSubCategories.length > 0) && (
       <section className="py-16 md:py-24 bg-secondary/50">
         <div className="container">
           <div className="text-center mb-12">
@@ -204,35 +208,39 @@ const Index = () => {
             <p className="text-muted-foreground text-sm">Shop our collections</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {topSubCategories.map((cat) => (
-              <Link
-                key={cat.id}
-                to={`/category/${cat.slug}`}
-                className="group relative aspect-[4/3] rounded-lg overflow-hidden bg-muted"
-              >
-                {cat.imageSrc ? (
-                  <img
-                    src={cat.imageSrc}
-                    alt={cat.name}
-                    loading="lazy"
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground bg-secondary">
-                    <ImageIcon className="w-10 h-10 opacity-40" />
-                    <span className="text-xs font-medium px-2 text-center">{cat.name}</span>
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 to-transparent" />
-                <div className="absolute inset-0 border-2 border-transparent group-hover:border-gold rounded-lg transition-colors duration-300" />
-                <div className="absolute bottom-4 left-4 right-4">
-                  <h3 className="font-serif text-lg md:text-xl text-background leading-tight">{cat.name}</h3>
-                  <span className="text-[10px] text-gold font-medium tracking-wider uppercase inline-flex items-center gap-1 mt-1">
-                    Explore <ArrowRight className="w-3 h-3" />
-                  </span>
-                </div>
-              </Link>
-            ))}
+            {categoriesPending
+              ? Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="aspect-[4/3] rounded-lg bg-muted animate-pulse" />
+                ))
+              : topSubCategories.map((cat) => (
+                  <Link
+                    key={cat.id}
+                    to={`/category/${cat.slug}`}
+                    className="group relative aspect-[4/3] rounded-lg overflow-hidden bg-muted"
+                  >
+                    {cat.imageSrc ? (
+                      <img
+                        src={cat.imageSrc}
+                        alt={cat.name}
+                        loading="lazy"
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground bg-secondary">
+                        <ImageIcon className="w-10 h-10 opacity-40" />
+                        <span className="text-xs font-medium px-2 text-center">{cat.name}</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 to-transparent" />
+                    <div className="absolute inset-0 border-2 border-transparent group-hover:border-gold rounded-lg transition-colors duration-300" />
+                    <div className="absolute bottom-4 left-4 right-4">
+                      <h3 className="font-serif text-lg md:text-xl text-background leading-tight">{cat.name}</h3>
+                      <span className="text-[10px] text-gold font-medium tracking-wider uppercase inline-flex items-center gap-1 mt-1">
+                        Explore <ArrowRight className="w-3 h-3" />
+                      </span>
+                    </div>
+                  </Link>
+                ))}
           </div>
         </div>
       </section>
@@ -261,7 +269,7 @@ const Index = () => {
               ))
             : featuredProducts.map((p) => (
                 <div key={p.id} className="min-w-[42vw] sm:min-w-[30vw] md:min-w-0 flex justify-center shrink-0 md:shrink">
-                  <ProductCard product={toCatalogProduct(p)} compact />
+                  <ProductCard product={toCatalogProduct(p, "all", featuredDU)} compact />
                 </div>
               ))}
         </div>

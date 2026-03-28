@@ -69,12 +69,22 @@ export function apiServerOrigin(): string {
   return API_BASE.replace(/\/api\/v1\/?$/i, "");
 }
 
-export function resolveUploadedAssetUrl(pathOrUrl: string | null | undefined): string | null {
+export function resolveUploadedAssetUrl(
+  pathOrUrl: string | null | undefined,
+  cacheBust?: number | string,
+): string | null {
   if (!pathOrUrl) return null;
-  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
-  const origin = apiServerOrigin();
-  const p = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
-  return `${origin}${p}`;
+  let base: string;
+  if (/^https?:\/\//i.test(pathOrUrl)) {
+    base = pathOrUrl;
+  } else {
+    const origin = apiServerOrigin();
+    const p = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
+    base = `${origin}${p}`;
+  }
+  if (cacheBust == null || String(cacheBust) === "") return base;
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}v=${encodeURIComponent(String(cacheBust))}`;
 }
 
 function getAuthHeaders() {
