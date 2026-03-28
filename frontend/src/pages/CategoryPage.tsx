@@ -35,7 +35,7 @@ const CategoryPage = () => {
       .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
   }, [categories, activeCategory]);
 
-  const { data: products = [], isPending: productsPending } = useQuery({
+  const { data: products = [], isPending: productsPending, dataUpdatedAt: productsDU } = useQuery({
     queryKey: ["products", slug, categoryHasChildren],
     queryFn: () =>
       activeCategory

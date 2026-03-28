@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str | None = None
     RAZORPAY_WEBHOOK_SECRET: str | None = None
 
+    # Optional: persist uploads across Render redeploys (local ./uploads is wiped each deploy).
+    # Create a public bucket in Supabase Dashboard → Storage, then set all three.
+    SUPABASE_URL: str | None = None  # e.g. https://xxxx.supabase.co (no trailing slash)
+    SUPABASE_SERVICE_ROLE_KEY: str | None = None
+    SUPABASE_STORAGE_BUCKET: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

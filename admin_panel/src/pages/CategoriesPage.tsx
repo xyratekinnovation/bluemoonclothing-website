@@ -355,11 +355,18 @@ export default function CategoriesPage() {
           if (!v) setEditCat(null);
         }}
       >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editCat ? "Edit Category" : "Add Category"}</DialogTitle>
-          </DialogHeader>
-          <form key={editCat?.id ?? "new"} onSubmit={handleSave} className="space-y-4">
+        <DialogContent className="max-w-md max-h-[min(90vh,calc(100dvh-2rem))] flex flex-col gap-0 overflow-hidden p-0 sm:rounded-lg">
+          <div className="shrink-0 border-b border-border px-6 pb-4 pt-8">
+            <DialogHeader>
+              <DialogTitle>{editCat ? "Edit Category" : "Add Category"}</DialogTitle>
+            </DialogHeader>
+          </div>
+          <form
+            key={editCat?.id ?? "new"}
+            onSubmit={handleSave}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-6 py-4">
             <div>
               <Label>Name</Label>
               <Input name="name" defaultValue={editCat?.name} required placeholder="e.g. Kurtas" />
@@ -465,7 +472,8 @@ export default function CategoriesPage() {
                 />
               </div>
             </div>
-            <DialogFooter>
+            </div>
+            <DialogFooter className="shrink-0 border-t border-border bg-background px-6 py-4">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
