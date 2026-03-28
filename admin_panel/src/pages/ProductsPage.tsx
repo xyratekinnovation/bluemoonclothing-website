@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -12,11 +12,336 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiDelete, apiGet, apiPatch, apiPost, type AdminCategory, type AdminProduct, type AdminProductRow } from "@/lib/api";
+
+const PRESET_SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
+const MATRIX_KEY_SEP = "\x1e";
+
+function encodeMatrixKey(size: string, color: string | null): string {
+  return `${size}${MATRIX_KEY_SEP}${color ?? ""}`;
+}
+
+function parseMatrixKey(key: string): { size: string; color: string | null } {
+  const i = key.indexOf(MATRIX_KEY_SEP);
+  if (i < 0) return { size: key, color: null };
+  const colorPart = key.slice(i + MATRIX_KEY_SEP.length);
+  return { size: key.slice(0, i), color: colorPart.length ? colorPart : null };
+}
+
+function parseList(raw: string): string[] {
+  return raw.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+}
+
+function skuPart(s: string): string {
+  return s.replace(/[^a-zA-Z0-9]+/g, "").toUpperCase().slice(0, 12) || "X";
+}
+
+function dedupeSkus(bases: string[]): string[] {
+  const seen = new Map<string, number>();
+  return bases.map((base) => {
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    return n === 0 ? base : `${base}-${n}`;
+  });
+}
+
+function sortSizesList(sizes: string[]): string[] {
+  const order = new Map(PRESET_SIZES.map((s, idx) => [s, idx]));
+  return [...new Set(sizes)].sort((a, b) => {
+    const ia = order.has(a) ? (order.get(a) as number) : 100;
+    const ib = order.has(b) ? (order.get(b) as number) : 100;
+    if (ia !== ib) return ia - ib;
+    return a.localeCompare(b);
+  });
+}
+
+function apiSizeToRow(s: string | null | undefined): string {
+  const t = (s ?? "").trim();
+  return t || "One size";
+}
+
+function rowSizeToApi(s: string): string | null {
+  const t = s.trim();
+  if (!t || t.toLowerCase() === "one size") return null;
+  return t;
+}
+
+type VariantMatrixState = {
+  presetSizes: string[];
+  extraSizesRaw: string;
+  colorsText: string;
+  skuPrefix: string;
+  basePrice: number;
+  compareAt: number | "";
+  stockByKey: Record<string, number>;
+  skuByKey: Record<string, string>;
+  priceMismatch: boolean;
+};
+
+function emptyMatrix(): VariantMatrixState {
+  return {
+    presetSizes: ["M"],
+    extraSizesRaw: "",
+    colorsText: "",
+    skuPrefix: "",
+    basePrice: 0,
+    compareAt: "",
+    stockByKey: {},
+    skuByKey: {},
+    priceMismatch: false,
+  };
+}
+
+function matrixComboKeys(sizes: string[], colors: string[]): string[] {
+  const keys: string[] = [];
+  if (colors.length === 0) {
+    for (const s of sizes) keys.push(encodeMatrixKey(s, null));
+  } else {
+    for (const s of sizes) {
+      for (const c of colors) keys.push(encodeMatrixKey(s, c));
+    }
+  }
+  return keys;
+}
+
+function matrixFromVariants(variants: AdminProduct["variants"]): VariantMatrixState {
+  const vs = variants ?? [];
+  if (vs.length === 0) return emptyMatrix();
+
+  const rowSizes = [...new Set(vs.map((v) => apiSizeToRow(v.size)))];
+  const presetSizes = PRESET_SIZES.filter((p) => rowSizes.includes(p));
+  const presetList = PRESET_SIZES as readonly string[];
+  const extraSizes = rowSizes.filter((r) => !presetList.includes(r));
+  const extraSizesRaw = extraSizes.join(", ");
+
+  const colorSet = new Set<string>();
+  for (const v of vs) {
+    const c = (v.color ?? "").trim();
+    if (c) colorSet.add(c);
+  }
+  const colorsText = [...colorSet].sort((a, b) => a.localeCompare(b)).join("\n");
+
+  const stockByKey: Record<string, number> = {};
+  const skuByKey: Record<string, string> = {};
+  for (const v of vs) {
+    const sz = apiSizeToRow(v.size);
+    const col = (v.color ?? "").trim() || null;
+    const k = encodeMatrixKey(sz, col);
+    stockByKey[k] = Number(v.stock_qty ?? 0);
+    if (v.sku) skuByKey[k] = v.sku;
+  }
+
+  const prices = vs.map((v) => Number(v.price ?? 0));
+  const priceMismatch = new Set(prices.map((p) => p.toFixed(2))).size > 1;
+  const basePrice = prices[0] ?? 0;
+  const cmp = vs.find((v) => v.compare_at_price != null)?.compare_at_price;
+  const compareAt = cmp != null && cmp !== undefined ? Number(cmp) : "";
+
+  return {
+    presetSizes,
+    extraSizesRaw,
+    colorsText,
+    skuPrefix: "",
+    basePrice,
+    compareAt,
+    stockByKey,
+    skuByKey,
+    priceMismatch,
+  };
+}
+
+function VariantMatrixSection({
+  matrix,
+  setMatrix,
+}: {
+  matrix: VariantMatrixState;
+  setMatrix: Dispatch<SetStateAction<VariantMatrixState>>;
+}) {
+  const extraParsed = parseList(matrix.extraSizesRaw);
+  const allSizes = sortSizesList([...matrix.presetSizes, ...extraParsed]);
+  const colors = parseList(matrix.colorsText);
+  const columnLabels = colors.length === 0 ? ["Standard"] : colors;
+
+  const togglePreset = (size: string) => {
+    setMatrix((m) => {
+      const has = m.presetSizes.includes(size);
+      const presetSizes = has ? m.presetSizes.filter((s) => s !== size) : [...m.presetSizes, size];
+      return { ...m, presetSizes };
+    });
+  };
+
+  const setStock = (key: string, qty: number) => {
+    setMatrix((m) => ({
+      ...m,
+      stockByKey: { ...m.stockByKey, [key]: Number.isFinite(qty) && qty >= 0 ? qty : 0 },
+    }));
+  };
+
+  return (
+    <div className="space-y-4 rounded-lg border border-border p-4">
+      <div>
+        <Label>Variants: sizes × colours × stock</Label>
+        <p className="text-xs text-muted-foreground mb-2">
+          Tick sizes, list colours once — they apply to every size. Set stock per cell; 0 stock disables that combination on the storefront.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {PRESET_SIZES.map((s) => {
+            const on = matrix.presetSizes.includes(s);
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => togglePreset(s)}
+                className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                  on ? "border-primary bg-primary/15 text-foreground" : "border-border bg-card hover:bg-muted/50"
+                }`}
+              >
+                {s}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div>
+        <Label>Extra sizes (optional)</Label>
+        <p className="text-xs text-muted-foreground mb-1">Comma-separated, e.g. 28, 30, 32</p>
+        <Input
+          value={matrix.extraSizesRaw}
+          onChange={(e) => setMatrix((m) => ({ ...m, extraSizesRaw: e.target.value }))}
+          placeholder="28, 30"
+          className="bg-card"
+        />
+      </div>
+      <div>
+        <Label>Colours</Label>
+        <p className="text-xs text-muted-foreground mb-1">
+          One per line or comma-separated. Leave empty for one option per size (no separate colours).
+        </p>
+        <Textarea
+          value={matrix.colorsText}
+          onChange={(e) => setMatrix((m) => ({ ...m, colorsText: e.target.value }))}
+          placeholder={"Navy\nBurgundy"}
+          rows={3}
+          className="bg-card"
+        />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <Label>Base price (₹)</Label>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            value={matrix.basePrice}
+            onChange={(e) => setMatrix((m) => ({ ...m, basePrice: Number(e.target.value) }))}
+            className="bg-card"
+          />
+        </div>
+        <div>
+          <Label>Compare-at (₹, optional)</Label>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            value={matrix.compareAt === "" ? "" : matrix.compareAt}
+            placeholder="MSRP"
+            className="bg-card"
+            onChange={(e) => {
+              const v = e.target.value;
+              setMatrix((m) => ({ ...m, compareAt: v === "" ? "" : Number(v) }));
+            }}
+          />
+        </div>
+        <div>
+          <Label>SKU prefix (optional)</Label>
+          <Input
+            value={matrix.skuPrefix}
+            onChange={(e) => setMatrix((m) => ({ ...m, skuPrefix: e.target.value }))}
+            placeholder="Auto from product slug"
+            className="bg-card"
+          />
+        </div>
+      </div>
+      {matrix.priceMismatch && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          Variants currently have different prices. Saving applies the base price above to every variant.
+        </p>
+      )}
+      {allSizes.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Select at least one size to edit stock.</p>
+      ) : (
+        <div className="overflow-x-auto rounded-md border border-border max-h-[min(50vh,24rem)] overflow-y-auto">
+          <table className="w-full min-w-[320px] text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/40">
+                <th className="p-2 text-left font-medium text-muted-foreground sticky left-0 bg-muted/40 z-10 min-w-[4rem] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]">
+                  Size
+                </th>
+                {columnLabels.map((label) => (
+                  <th key={label} className="p-2 text-center font-medium text-muted-foreground min-w-[5.5rem]">
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {allSizes.map((size) => (
+                <tr key={size} className="border-b border-border last:border-0">
+                  <td className="p-2 font-medium sticky left-0 bg-card z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                    {size}
+                  </td>
+                  {colors.length === 0 ? (
+                    <td className="p-1 text-center">
+                      <Input
+                        type="number"
+                        min={0}
+                        className="h-9 text-center px-1 bg-card"
+                        value={matrix.stockByKey[encodeMatrixKey(size, null)] ?? ""}
+                        placeholder="0"
+                        onChange={(e) =>
+                          setStock(
+                            encodeMatrixKey(size, null),
+                            e.target.value === "" ? 0 : Number(e.target.value),
+                          )
+                        }
+                      />
+                    </td>
+                  ) : (
+                    colors.map((col) => {
+                      const k = encodeMatrixKey(size, col);
+                      return (
+                        <td key={k} className="p-1 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            className="h-9 text-center px-1 bg-card"
+                            value={matrix.stockByKey[k] ?? ""}
+                            placeholder="0"
+                            onChange={(e) =>
+                              setStock(k, e.target.value === "" ? 0 : Number(e.target.value))
+                            }
+                          />
+                        </td>
+                      );
+                    })
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Existing SKUs are kept when the size/colour cell matches. New cells get an auto SKU from your prefix.
+      </p>
+    </div>
+  );
+}
 
 interface ProductRow {
   id: string;
@@ -35,15 +360,6 @@ interface ProductRow {
   color: string;
 }
 
-type DraftVariant = {
-  sku: string;
-  size: string;
-  color: string;
-  price: number;
-  stock_qty: number;
-  is_active: boolean;
-};
-
 type DraftImage = {
   image_url: string;
   is_primary: boolean;
@@ -58,9 +374,7 @@ export default function ProductsPage() {
   const [draftName, setDraftName] = useState("");
   const [draftCategoryId, setDraftCategoryId] = useState<string>("none");
   const [draftDescription, setDraftDescription] = useState("");
-  const [draftVariants, setDraftVariants] = useState<DraftVariant[]>([
-    { sku: "", size: "M", color: "", price: 0, stock_qty: 0, is_active: true },
-  ]);
+  const [variantMatrix, setVariantMatrix] = useState<VariantMatrixState>(() => emptyMatrix());
   const [draftImages, setDraftImages] = useState<DraftImage[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -145,23 +459,14 @@ export default function ProductsPage() {
       setDraftName("");
       setDraftCategoryId("none");
       setDraftDescription("");
-      setDraftVariants([{ sku: "", size: "M", color: "", price: 0, stock_qty: 0, is_active: true }]);
+      setVariantMatrix(emptyMatrix());
       setDraftImages([]);
       return;
     }
     setDraftName(editProduct.name);
     setDraftCategoryId(editProduct.category_id ?? "none");
     setDraftDescription(editProduct.description ?? "");
-    setDraftVariants(
-      (editProduct.variants?.length ? editProduct.variants : []).map((v) => ({
-        sku: v.sku ?? "",
-        size: v.size ?? "",
-        color: v.color ?? "",
-        price: Number(v.price ?? 0),
-        stock_qty: Number(v.stock_qty ?? 0),
-        is_active: Boolean(v.is_active),
-      })) || [{ sku: "", size: "M", color: "", price: 0, stock_qty: 0, is_active: true }],
-    );
+    setVariantMatrix(matrixFromVariants(editProduct.variants));
     const imgs = (editProduct.images ?? []).map((img) => ({
       image_url: img.image_url,
       is_primary: img.is_primary,
@@ -181,19 +486,42 @@ export default function ProductsPage() {
     const description = draftDescription?.trim() ? draftDescription.trim() : null;
     const slug = name.toLowerCase().trim().replace(/\s+/g, "-");
 
-    const variants = draftVariants
-      .map((v) => ({
-        sku: v.sku.trim(),
-        size: v.size?.trim() || null,
-        color: v.color?.trim() || null,
-        price: Number(v.price || 0),
-        stock_qty: Number(v.stock_qty || 0),
-        is_active: Boolean(v.is_active),
-      }))
-      .filter((v) => Boolean(v.sku));
+    const extraParsed = parseList(variantMatrix.extraSizesRaw);
+    const allSizes = sortSizesList([...variantMatrix.presetSizes, ...extraParsed]);
+    const colors = parseList(variantMatrix.colorsText);
+
+    if (allSizes.length === 0) {
+      toast({ title: "Select at least one size", variant: "destructive" });
+      return;
+    }
+
+    const keys = matrixComboKeys(allSizes, colors);
+    const slugPart = skuPart(slug.replace(/-/g, "")) || "ITEM";
+    const prefixRaw = variantMatrix.skuPrefix.trim() || slugPart;
+    const baseSku = prefixRaw.replace(/[^a-zA-Z0-9_-]+/g, "").slice(0, 40) || "SKU";
+
+    const rows = keys.map((key) => {
+      const { size, color } = parseMatrixKey(key);
+      const stock = Math.max(0, Math.floor(Number(variantMatrix.stockByKey[key] ?? 0)));
+      const preserved = variantMatrix.skuByKey[key];
+      const auto = `${baseSku}-${skuPart(size)}-${color ? skuPart(color) : "STD"}`;
+      return { key, size, color, stock, sku: preserved || auto };
+    });
+    const skus = dedupeSkus(rows.map((r) => r.sku));
+
+    const variants = rows.map((r, i) => ({
+      sku: skus[i],
+      size: rowSizeToApi(r.size),
+      color: r.color,
+      price: Number(variantMatrix.basePrice) || 0,
+      compare_at_price: variantMatrix.compareAt === "" ? null : Number(variantMatrix.compareAt),
+      stock_qty: r.stock,
+      low_stock_threshold: 5,
+      is_active: r.stock > 0,
+    }));
 
     if (variants.length === 0) {
-      toast({ title: "Add at least 1 variant with SKU", variant: "destructive" });
+      toast({ title: "No variants to save", variant: "destructive" });
       return;
     }
 
@@ -298,7 +626,7 @@ export default function ProductsPage() {
                   <td className="p-4">
                     <div>
                       <p className="font-medium">{p.name}</p>
-                      <p className="text-xs text-muted-foreground">{p.category} · {p.sizes.join(", ")}</p>
+                      <p className="text-xs text-muted-foreground">{p.category} · {p.sizes.length ? p.sizes.join(", ") : "—"}</p>
                     </div>
                   </td>
                   <td className="p-4 hidden md:table-cell text-muted-foreground">{p.sku}</td>
@@ -372,76 +700,7 @@ export default function ProductsPage() {
               </div>
             </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Variants (Size/Color/SKU)</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDraftVariants((prev) => [...prev, { sku: "", size: "M", color: "", price: 0, stock_qty: 0, is_active: true }])}
-                  >
-                    Add Variant
-                  </Button>
-                </div>
-                <div className="space-y-3">
-                  {draftVariants.map((v, idx) => (
-                    <div key={idx} className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
-                      <div className="col-span-2">
-                        <Label className="text-xs">SKU</Label>
-                        <Input
-                          value={v.sku}
-                          onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, sku: e.target.value } : x)))}
-                          placeholder="SKU"
-                          required={idx === 0}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Size</Label>
-                        <Input value={v.size} onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, size: e.target.value } : x)))} />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Color</Label>
-                        <Input value={v.color} onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, color: e.target.value } : x)))} />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Price (₹)</Label>
-                        <Input
-                          type="number"
-                          value={v.price}
-                          onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, price: Number(e.target.value) } : x)))}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Stock</Label>
-                        <Input
-                          type="number"
-                          value={v.stock_qty}
-                          onChange={(e) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, stock_qty: Number(e.target.value) } : x)))}
-                        />
-                      </div>
-                      <div className="col-span-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={v.is_active}
-                            onCheckedChange={(checked) => setDraftVariants((prev) => prev.map((x, i) => (i === idx ? { ...x, is_active: checked } : x)))}
-                          />
-                          <span className="text-xs text-muted-foreground">Active</span>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive"
-                          onClick={() => setDraftVariants((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)))}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <VariantMatrixSection matrix={variantMatrix} setMatrix={setVariantMatrix} />
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">

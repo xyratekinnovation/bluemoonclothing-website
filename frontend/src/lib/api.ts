@@ -143,10 +143,13 @@ export async function apiPatch<T>(path: string, body: unknown, authenticated = f
   return response.json() as Promise<T>;
 }
 
-export async function apiDelete(path: string, authenticated = false): Promise<void> {
+export async function apiDelete<T = void>(path: string, authenticated = false): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method: "DELETE",
     headers: authenticated ? authHeaders() : {},
   });
   await throwIfNotOk(response);
+  const text = await response.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }

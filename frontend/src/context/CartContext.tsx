@@ -29,6 +29,8 @@ interface CartContextType {
   totalItems: number;
   totalPrice: number;
   isLoading: boolean;
+  /** True while add/update/remove/clear cart API call is in flight (for button spinners). */
+  isCartMutating: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -77,24 +79,38 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addMutation = useMutation({
     mutationFn: ({ variantId, quantity }: { variantId: string; quantity: number }) =>
       apiPost<ApiCart>("/cart/items", { product_variant_id: variantId, quantity }, true),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["cart"] }),
+    onSuccess: (data) => {
+      queryClient.setQueryData<ApiCart>(["cart"], data);
+    },
   });
   const patchMutation = useMutation({
     mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
       apiPatch<ApiCart>(`/cart/items/${itemId}`, { quantity }, true),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["cart"] }),
+    onSuccess: (data) => {
+      queryClient.setQueryData<ApiCart>(["cart"], data);
+    },
   });
   const deleteMutation = useMutation({
-    mutationFn: (itemId: string) => apiDelete(`/cart/items/${itemId}`, true),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["cart"] }),
+    mutationFn: (itemId: string) => apiDelete<ApiCart>(`/cart/items/${itemId}`, true),
+    onSuccess: (data) => {
+      queryClient.setQueryData<ApiCart>(["cart"], data);
+    },
   });
   const clearMutation = useMutation({
-    mutationFn: () => apiDelete("/cart", true),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["cart"] }),
+    mutationFn: () => apiDelete<ApiCart>("/cart", true),
+    onSuccess: (data) => {
+      queryClient.setQueryData<ApiCart>(["cart"], data);
+    },
   });
 
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
   const totalPrice = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+
+  const isCartMutating =
+    addMutation.isPending ||
+    patchMutation.isPending ||
+    deleteMutation.isPending ||
+    clearMutation.isPending;
 
   return (
     <CartContext.Provider
@@ -119,6 +135,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         totalItems,
         totalPrice,
         isLoading,
+        isCartMutating,
       }}
     >
       {children}

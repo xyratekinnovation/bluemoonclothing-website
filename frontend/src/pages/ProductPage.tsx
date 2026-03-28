@@ -1,7 +1,7 @@
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Minus, Plus, ShoppingBag, Heart } from "lucide-react";
+import { Minus, Plus, ShoppingBag, Heart, Loader2 } from "lucide-react";
 import Layout from "@/components/Layout";
 import ProductCard from "@/components/ProductCard";
 import { useCart } from "@/context/CartContext";
@@ -16,7 +16,7 @@ function normSize(v: { size: string | null }): string {
 const ProductPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { addVariant } = useCart();
+  const { addVariant, isCartMutating } = useCart();
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
     queryFn: () => apiGet<ApiCategory[]>("/categories"),
@@ -44,10 +44,16 @@ const ProductPage = () => {
     staleTime: 60_000,
   });
 
+  const variantInStock = (v: { stock_qty: number; is_active: boolean }) =>
+    v.is_active && Number(v.stock_qty) > 0;
+
   const sizeOptions = useMemo(() => {
     if (!apiProduct?.variants.length) return [] as string[];
-    return Array.from(new Set(apiProduct.variants.map((v) => normSize(v))));
+    return Array.from(new Set(apiProduct.variants.map((v) => normSize(v)))).sort((a, b) => a.localeCompare(b));
   }, [apiProduct]);
+
+  const sizeHasStock = (size: string) =>
+    apiProduct?.variants.some((v) => normSize(v) === size && variantInStock(v)) ?? false;
 
   const [selectedSize, setSelectedSize] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
@@ -59,16 +65,16 @@ const ProductPage = () => {
     setSelectedSize((prev) => (prev && sizeOptions.includes(prev) ? prev : sizeOptions[0]));
   }, [sizeOptions]);
 
-  const colorsForSize = useMemo(() => {
-    if (!apiProduct || !selectedSize) return [] as string[];
-    return Array.from(
-      new Set(
-        apiProduct.variants
-          .filter((v) => normSize(v) === selectedSize)
-          .map((v) => (v.color ?? "").trim())
-          .filter(Boolean),
-      ),
-    );
+  type ColorOpt = { name: string; inStock: boolean };
+  const colorsForSize = useMemo((): ColorOpt[] => {
+    if (!apiProduct || !selectedSize) return [];
+    const map = new Map<string, boolean>();
+    for (const v of apiProduct.variants.filter((x) => normSize(x) === selectedSize)) {
+      const name = (v.color ?? "").trim() || "—";
+      const ok = variantInStock(v);
+      map.set(name, (map.get(name) ?? false) || ok);
+    }
+    return [...map.entries()].map(([name, inStock]) => ({ name, inStock }));
   }, [apiProduct, selectedSize]);
 
   useEffect(() => {
@@ -76,17 +82,34 @@ const ProductPage = () => {
       setSelectedColor("");
       return;
     }
-    setSelectedColor((prev) => (prev && colorsForSize.includes(prev) ? prev : colorsForSize[0]));
+    const firstAvailable = colorsForSize.find((c) => c.inStock)?.name;
+    setSelectedColor((prev) => {
+      const prevOk = prev && colorsForSize.some((c) => c.name === prev && c.inStock);
+      if (prevOk) return prev;
+      return firstAvailable ?? colorsForSize[0]?.name ?? "";
+    });
   }, [colorsForSize]);
 
   const selectedVariant = useMemo(() => {
     if (!apiProduct || !selectedSize) return undefined;
     const matchSize = apiProduct.variants.filter((v) => normSize(v) === selectedSize);
     if (colorsForSize.length > 0) {
-      return matchSize.find((v) => (v.color ?? "").trim() === selectedColor);
+      const want = selectedColor === "—" ? "" : selectedColor;
+      return matchSize.find((v) => ((v.color ?? "").trim() || "—") === (want || "—"));
     }
     return matchSize[0];
-  }, [apiProduct, selectedSize, selectedColor, colorsForSize.length]);
+  }, [apiProduct, selectedSize, selectedColor, colorsForSize]);
+
+  const displayPrice = selectedVariant ? Number(selectedVariant.price) : product?.price ?? 0;
+  const stockAvailable =
+    selectedVariant && variantInStock(selectedVariant) ? Number(selectedVariant.stock_qty) : 0;
+  const showColorRow = colorsForSize.some((c) => c.name !== "—");
+
+  useEffect(() => {
+    if (stockAvailable > 0) {
+      setQuantity((q) => Math.min(Math.max(1, q), stockAvailable));
+    }
+  }, [stockAvailable, selectedVariant?.id]);
 
   if (productPending || !id) {
     return (
@@ -129,7 +152,7 @@ const ProductPage = () => {
       toast.error("Please select a size");
       return;
     }
-    if (colorsForSize.length > 0 && !selectedColor) {
+    if (showColorRow && !selectedColor) {
       toast.error("Please select a color");
       return;
     }
@@ -139,8 +162,12 @@ const ProductPage = () => {
       navigate(`/login?returnTo=${encodeURIComponent("/cart")}`);
       return;
     }
-    if (!selectedVariant) {
-      toast.error("This combination is not available");
+    if (!selectedVariant || !variantInStock(selectedVariant)) {
+      toast.error("This option is out of stock");
+      return;
+    }
+    if (quantity > Number(selectedVariant.stock_qty)) {
+      toast.error("Not enough stock");
       return;
     }
     addVariant(selectedVariant.id, quantity)
@@ -172,9 +199,9 @@ const ProductPage = () => {
             )}
             <h1 className="font-serif text-2xl md:text-3xl text-foreground mb-2">{product.name}</h1>
             <div className="flex items-center gap-3 mb-6">
-              <span className="text-xl font-semibold text-primary">₹{product.price.toLocaleString()}</span>
-              {product.originalPrice && (
-                <span className="text-sm text-muted-foreground line-through">₹{product.originalPrice.toLocaleString()}</span>
+              <span className="text-xl font-semibold text-primary">₹{displayPrice.toLocaleString()}</span>
+              {selectedVariant?.compare_at_price != null && Number(selectedVariant.compare_at_price) > displayPrice && (
+                <span className="text-sm text-muted-foreground line-through">₹{Number(selectedVariant.compare_at_price).toLocaleString()}</span>
               )}
             </div>
 
@@ -184,40 +211,51 @@ const ProductPage = () => {
               <div className="mb-6">
                 <h3 className="text-xs font-semibold tracking-widest uppercase text-muted-foreground mb-3">Size</h3>
                 <div className="flex flex-wrap gap-2">
-                  {sizeOptions.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setSelectedSize(s)}
-                      className={`min-w-[44px] px-3 py-2 text-sm rounded-md border transition-colors ${
-                        selectedSize === s
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border text-foreground hover:border-primary"
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  ))}
+                  {sizeOptions.map((s) => {
+                    const available = sizeHasStock(s);
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        disabled={!available}
+                        onClick={() => available && setSelectedSize(s)}
+                        title={!available ? "Out of stock" : undefined}
+                        className={`min-w-[44px] px-3 py-2 text-sm rounded-md border transition-colors ${
+                          selectedSize === s
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : available
+                              ? "border-border text-foreground hover:border-primary"
+                              : "border-border text-muted-foreground opacity-50 cursor-not-allowed line-through"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            {colorsForSize.length > 0 && (
+            {showColorRow && colorsForSize.length > 0 && (
               <div className="mb-6">
                 <h3 className="text-xs font-semibold tracking-widest uppercase text-muted-foreground mb-3">Color</h3>
                 <div className="flex flex-wrap gap-2">
-                  {colorsForSize.map((c) => (
+                  {colorsForSize.map(({ name: c, inStock }) => (
                     <button
                       key={c}
                       type="button"
-                      onClick={() => setSelectedColor(c)}
+                      disabled={!inStock}
+                      onClick={() => inStock && setSelectedColor(c)}
+                      title={!inStock ? "Out of stock" : undefined}
                       className={`px-4 py-2 text-sm rounded-md border transition-colors ${
                         selectedColor === c
                           ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border text-foreground hover:border-primary"
+                          : inStock
+                            ? "border-border text-foreground hover:border-primary"
+                            : "border-border text-muted-foreground opacity-50 cursor-not-allowed line-through"
                       }`}
                     >
-                      {c}
+                      {c === "—" ? "Standard" : c}
                     </button>
                   ))}
                 </div>
@@ -227,23 +265,50 @@ const ProductPage = () => {
             <div className="mb-8">
               <h3 className="text-xs font-semibold tracking-widest uppercase text-muted-foreground mb-3">Quantity</h3>
               <div className="inline-flex items-center border border-border rounded-md">
-                <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-2.5 text-foreground hover:text-primary transition-colors">
+                <button
+                  type="button"
+                  disabled={stockAvailable <= 0}
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  className="p-2.5 text-foreground hover:text-primary transition-colors disabled:opacity-40"
+                >
                   <Minus className="w-4 h-4" />
                 </button>
                 <span className="px-4 text-sm font-medium text-foreground">{quantity}</span>
-                <button type="button" onClick={() => setQuantity(quantity + 1)} className="p-2.5 text-foreground hover:text-primary transition-colors">
+                <button
+                  type="button"
+                  disabled={stockAvailable <= 0 || quantity >= stockAvailable}
+                  onClick={() => setQuantity(Math.min(stockAvailable, quantity + 1))}
+                  className="p-2.5 text-foreground hover:text-primary transition-colors disabled:opacity-40"
+                >
                   <Plus className="w-4 h-4" />
                 </button>
               </div>
+              {stockAvailable > 0 && (
+                <p className="text-xs text-muted-foreground mt-2">{stockAvailable} in stock</p>
+              )}
+              {selectedVariant && !variantInStock(selectedVariant) && (
+                <p className="text-xs text-destructive mt-2">Out of stock</p>
+              )}
             </div>
 
             <div className="flex gap-3 mb-8">
               <button
                 type="button"
                 onClick={handleAddToCart}
-                className="flex-1 bg-gold-gradient text-primary-foreground px-6 py-3.5 rounded-md text-sm font-medium tracking-wide hover:opacity-90 transition-opacity inline-flex items-center justify-center gap-2"
+                disabled={
+                  isCartMutating ||
+                  !selectedVariant ||
+                  !variantInStock(selectedVariant) ||
+                  quantity < 1
+                }
+                className="flex-1 bg-gold-gradient text-primary-foreground px-6 py-3.5 rounded-md text-sm font-medium tracking-wide hover:opacity-90 transition-opacity inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
               >
-                <ShoppingBag className="w-4 h-4" /> Add to Cart
+                {isCartMutating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ShoppingBag className="w-4 h-4" />
+                )}
+                {isCartMutating ? "Adding…" : "Add to Cart"}
               </button>
               <button type="button" className="p-3.5 border border-border rounded-md text-muted-foreground hover:text-primary hover:border-primary transition-colors" aria-label="Wishlist">
                 <Heart className="w-5 h-5" />
