@@ -60,19 +60,20 @@ const Index = () => {
 
   return (
     <Layout>
-    {/* Hero — responsive image (admin: desktop + mobile uploads) */}
+    {/* Hero — responsive image; object-top keeps heads/subject out of the top crop (cover + center was clipping tops) */}
     <section className="relative overflow-hidden min-h-[70vh] md:min-h-[80vh] flex items-center bg-secondary">
       <div className="absolute inset-0 z-0">
-        <picture className="block w-full h-full min-h-[70vh] md:min-h-[80vh]">
+        <picture className="absolute inset-0 block">
           <source media="(max-width: 767px)" srcSet={heroMobileSrc} />
           <img
             src={heroDesktopSrc}
             alt=""
-            className="w-full h-full min-h-[70vh] md:min-h-[80vh] object-cover object-center"
+            fetchPriority="high"
+            className="absolute inset-0 h-full w-full object-cover object-top"
           />
         </picture>
       </div>
-      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-background/95 via-background/85 to-background/80 md:bg-gradient-to-r md:from-background md:via-background/90 md:to-background/20" aria-hidden />
+      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-background/95 via-background/85 to-background/80 md:bg-gradient-to-r md:from-background md:via-background/80 md:to-transparent" aria-hidden />
       <div className="container relative z-10 py-12 md:py-16">
         <div className="max-w-xl animate-fade-in-left" style={{ animationDelay: "0.1s" }}>
           <p className="text-xs font-semibold tracking-[0.25em] uppercase text-primary mb-4">New Collection 2026</p>

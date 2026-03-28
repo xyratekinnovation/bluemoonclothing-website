@@ -81,9 +81,13 @@ export default function HeroBannerPage() {
       <div>
         <h2 className="text-2xl font-bold">Homepage hero banner</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload separate images for desktop and mobile. The storefront hero uses the mobile image below{" "}
-          <span className="text-foreground font-medium">768px</span> width when set; otherwise it uses the desktop
-          image. If nothing is saved, the default hero image is shown.
+          Upload separate images for desktop and mobile. The storefront uses the mobile file below{" "}
+          <span className="text-foreground font-medium">768px</span> width when set; otherwise the desktop file. The
+          hero keeps the <span className="text-foreground font-medium">top</span> of the photo in frame (so heads are not
+          cropped). For a sharp banner on large screens, use desktop images at least{" "}
+          <span className="text-foreground font-medium">2400px wide</span> (JPEG/PNG quality 85%+); mobile at least{" "}
+          <span className="text-foreground font-medium">1080px wide</span>. If nothing is saved, the default hero is
+          shown.
         </p>
       </div>
 
@@ -98,7 +102,10 @@ export default function HeroBannerPage() {
               <ImageIcon className="w-4 h-4 text-primary" />
               Desktop banner
             </div>
-            <p className="text-xs text-muted-foreground">Wide landscape works best (e.g. 1920×1080 or larger).</p>
+            <p className="text-xs text-muted-foreground">
+              Wide landscape; aim for <strong className="font-medium text-foreground">≥ 2400×1350</strong> so it stays
+              sharp full-width. Avoid over-compressed JPEGs.
+            </p>
             <input
               ref={desktopFileRef}
               type="file"
@@ -153,7 +160,8 @@ export default function HeroBannerPage() {
               Mobile banner
             </div>
             <p className="text-xs text-muted-foreground">
-              Portrait or tall crops work well; shown on screens under 768px when uploaded.
+              Portrait or tall; aim for <strong className="font-medium text-foreground">≥ 1080px wide</strong> on the
+              short edge for clarity on phones.
             </p>
             <input
               ref={mobileFileRef}
