@@ -60,7 +60,7 @@ const Index = () => {
 
   return (
     <Layout>
-    {/* Hero — responsive image; object-top keeps heads/subject out of the top crop (cover + center was clipping tops) */}
+    {/* Hero: object-contain = full artwork visible (no cover crop). Scrim only behind text, not over the whole photo. */}
     <section className="relative overflow-hidden min-h-[70vh] md:min-h-[80vh] flex items-center bg-secondary">
       <div className="absolute inset-0 z-0">
         <picture className="absolute inset-0 block">
@@ -69,13 +69,30 @@ const Index = () => {
             src={heroDesktopSrc}
             alt=""
             fetchPriority="high"
-            className="absolute inset-0 h-full w-full object-cover object-top"
+            className="absolute inset-0 h-full w-full object-contain object-center"
           />
         </picture>
       </div>
-      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-background/95 via-background/85 to-background/80 md:bg-gradient-to-r md:from-background md:via-background/80 md:to-transparent" aria-hidden />
+      {/* Mobile: light scrim only behind top copy; most of the photo stays full strength */}
+      <div
+        className="absolute inset-0 z-[1] pointer-events-none md:hidden"
+        style={{
+          background:
+            "linear-gradient(180deg, hsl(var(--background) / 0.88) 0%, hsl(var(--background) / 0.35) 42%, transparent 68%)",
+        }}
+        aria-hidden
+      />
+      {/* Desktop: strong fade only on the left (text column); right ~half stays clear for the subject */}
+      <div
+        className="absolute inset-0 z-[1] pointer-events-none hidden md:block"
+        style={{
+          background:
+            "linear-gradient(90deg, hsl(var(--background) / 0.97) 0%, hsl(var(--background) / 0.55) 14%, hsl(var(--background) / 0.18) 30%, transparent 48%)",
+        }}
+        aria-hidden
+      />
       <div className="container relative z-10 py-12 md:py-16">
-        <div className="max-w-xl animate-fade-in-left" style={{ animationDelay: "0.1s" }}>
+        <div className="max-w-xl animate-fade-in-left [text-shadow:0_1px_2px_hsl(var(--background)/0.8)]" style={{ animationDelay: "0.1s" }}>
           <p className="text-xs font-semibold tracking-[0.25em] uppercase text-primary mb-4">New Collection 2026</p>
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-tight text-foreground mb-6">
             Every Fit Feels<br />

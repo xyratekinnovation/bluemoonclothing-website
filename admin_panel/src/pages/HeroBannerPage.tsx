@@ -83,8 +83,9 @@ export default function HeroBannerPage() {
         <p className="text-sm text-muted-foreground mt-1">
           Upload separate images for desktop and mobile. The storefront uses the mobile file below{" "}
           <span className="text-foreground font-medium">768px</span> width when set; otherwise the desktop file. The
-          hero keeps the <span className="text-foreground font-medium">top</span> of the photo in frame (so heads are not
-          cropped). For a sharp banner on large screens, use desktop images at least{" "}
+          storefront shows the <span className="text-foreground font-medium">full image</span> (no zoom-crop); wide
+          layouts may show slim side bands in your page background colour. For a sharp banner on large screens, use
+          desktop images at least{" "}
           <span className="text-foreground font-medium">2400px wide</span> (JPEG/PNG quality 85%+); mobile at least{" "}
           <span className="text-foreground font-medium">1080px wide</span>. If nothing is saved, the default hero is
           shown.
