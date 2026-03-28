@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Diamond, Heart, Palette, Crown } from "lucide-react";
+import { useMemo } from "react";
+import { ArrowRight, Diamond, Heart, Palette, Crown, ImageIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import ProductCard from "@/components/ProductCard";
@@ -10,11 +11,15 @@ import categoryKids from "@/assets/category-kids.jpg";
 import { apiGet, resolvePublicAssetUrl, type ApiCategory, type ApiProduct } from "@/lib/api";
 import { toCatalogProduct } from "@/types/catalog";
 
-const categories = [
-  { name: "Men", slug: "men", image: categoryMen },
-  { name: "Women", slug: "women", image: categoryWomen },
-  { name: "Kids", slug: "kids", image: categoryKids },
-];
+/** Fixed order for the main “Shop by category” row (top-level only). */
+const MAIN_SHOP_SLUGS = ["men", "women", "kids"] as const;
+
+function fallbackMainCategoryImage(slug: string): string {
+  if (slug === "men") return categoryMen;
+  if (slug === "women") return categoryWomen;
+  if (slug === "kids") return categoryKids;
+  return categoryMen;
+}
 
 const features = [
   { icon: Crown, title: "Premium Quality", description: "Crafted from the finest fabrics sourced globally" },
@@ -45,18 +50,33 @@ const Index = () => {
   const heroMobileSrc =
     resolvePublicAssetUrl(heroBannerApi?.mobile_url ?? undefined) ?? heroDesktopSrc;
 
-  const displayCategories = categoriesData.length > 0 ? categoriesData.map((category) => ({
-    name: category.name,
-    slug: category.slug,
-    image:
-      category.slug === "men"
-        ? categoryMen
-        : category.slug === "women"
-          ? categoryWomen
-          : category.slug === "kids"
-            ? categoryKids
-            : categoryMen,
-  })) : categories;
+  const shopByMainCategories = useMemo(() => {
+    return MAIN_SHOP_SLUGS.map((slug) => {
+      const cat = categoriesData.find(
+        (c) => c.slug.toLowerCase() === slug && c.parent_id === null,
+      );
+      if (!cat) return null;
+      const uploaded = resolvePublicAssetUrl(cat.image_url ?? undefined);
+      return {
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        imageSrc: uploaded ?? fallbackMainCategoryImage(slug),
+      };
+    }).filter(Boolean) as { id: string; name: string; slug: string; imageSrc: string }[];
+  }, [categoriesData]);
+
+  const topSubCategories = useMemo(() => {
+    return categoriesData
+      .filter((c) => c.parent_id !== null)
+      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        imageSrc: resolvePublicAssetUrl(c.image_url ?? undefined),
+      }));
+  }, [categoriesData]);
 
   return (
     <Layout>
@@ -116,38 +136,94 @@ const Index = () => {
       </div>
     </section>
 
-    {/* Categories */}
+    {/* Shop by category — Men, Women, Kids only */}
     <section className="py-16 md:py-24">
       <div className="container">
         <div className="text-center mb-12">
           <h2 className="font-serif text-3xl md:text-4xl text-foreground mb-3">Shop by Category</h2>
-          <p className="text-muted-foreground text-sm">Find your perfect fit</p>
+          <p className="text-muted-foreground text-sm">Men, Women &amp; Kids</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
           {categoriesPending
             ? Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="aspect-[4/3] rounded-lg bg-muted animate-pulse" />
               ))
-            : displayCategories.map((cat) => (
-                <Link
-                  key={cat.slug}
-                  to={`/category/${cat.slug}`}
-                  className="group relative aspect-[4/3] rounded-lg overflow-hidden"
-                >
-                  <img src={cat.image} alt={cat.name} loading="lazy" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 to-transparent" />
-                  <div className="absolute inset-0 border-2 border-transparent group-hover:border-gold rounded-lg transition-colors duration-300" />
-                  <div className="absolute bottom-6 left-6">
-                    <h3 className="font-serif text-2xl text-background mb-1">{cat.name}</h3>
-                    <span className="text-xs text-gold font-medium tracking-wider uppercase inline-flex items-center gap-1">
-                      Explore <ArrowRight className="w-3 h-3" />
-                    </span>
-                  </div>
-                </Link>
-              ))}
+            : shopByMainCategories.length > 0 ? (
+                shopByMainCategories.map((cat) => (
+                  <Link
+                    key={cat.id}
+                    to={`/category/${cat.slug}`}
+                    className="group relative aspect-[4/3] rounded-lg overflow-hidden"
+                  >
+                    <img
+                      src={cat.imageSrc}
+                      alt={cat.name}
+                      loading="lazy"
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 to-transparent" />
+                    <div className="absolute inset-0 border-2 border-transparent group-hover:border-gold rounded-lg transition-colors duration-300" />
+                    <div className="absolute bottom-6 left-6">
+                      <h3 className="font-serif text-2xl text-background mb-1">{cat.name}</h3>
+                      <span className="text-xs text-gold font-medium tracking-wider uppercase inline-flex items-center gap-1">
+                        Explore <ArrowRight className="w-3 h-3" />
+                      </span>
+                    </div>
+                  </Link>
+                ))
+              ) : (
+                <p className="col-span-full text-center text-sm text-muted-foreground py-8">
+                  Add top-level categories with slugs <strong className="text-foreground">men</strong>,{" "}
+                  <strong className="text-foreground">women</strong>, and <strong className="text-foreground">kids</strong>{" "}
+                  in the admin.
+                </p>
+              )}
         </div>
       </div>
     </section>
+
+    {/* Top categories — subcategories (under Men / Women / Kids) */}
+    {topSubCategories.length > 0 && (
+      <section className="py-16 md:py-24 bg-secondary/50">
+        <div className="container">
+          <div className="text-center mb-12">
+            <h2 className="font-serif text-3xl md:text-4xl text-foreground mb-3">Top categories</h2>
+            <p className="text-muted-foreground text-sm">Shop our collections</p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+            {topSubCategories.map((cat) => (
+              <Link
+                key={cat.id}
+                to={`/category/${cat.slug}`}
+                className="group relative aspect-[4/3] rounded-lg overflow-hidden bg-muted"
+              >
+                {cat.imageSrc ? (
+                  <img
+                    src={cat.imageSrc}
+                    alt={cat.name}
+                    loading="lazy"
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground bg-secondary">
+                    <ImageIcon className="w-10 h-10 opacity-40" />
+                    <span className="text-xs font-medium px-2 text-center">{cat.name}</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 to-transparent" />
+                <div className="absolute inset-0 border-2 border-transparent group-hover:border-gold rounded-lg transition-colors duration-300" />
+                <div className="absolute bottom-4 left-4 right-4">
+                  <h3 className="font-serif text-lg md:text-xl text-background leading-tight">{cat.name}</h3>
+                  <span className="text-[10px] text-gold font-medium tracking-wider uppercase inline-flex items-center gap-1 mt-1">
+                    Explore <ArrowRight className="w-3 h-3" />
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
 
     {/* Featured Products */}
     <section className="py-16 md:py-24 bg-secondary/50">
