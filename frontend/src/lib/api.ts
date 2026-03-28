@@ -5,6 +5,8 @@ export interface ApiCategory {
   parent_id: string | null;
   image_url: string | null;
   is_active: boolean;
+  /** Omitted on older APIs — treat as true. */
+  show_on_home?: boolean;
   sort_order: number;
 }
 

@@ -66,11 +66,16 @@ const Index = () => {
     }).filter(Boolean) as { id: string; name: string; slug: string; imageSrc: string }[];
   }, [categoriesData]);
 
-  /** Leaf categories only (sellable departments), so hubs/groups do not flood the home grid. */
+  /** Leaf categories only; admin can turn off “Home row” per leaf without deactivating the category. */
   const topSubCategories = useMemo(() => {
     const hasChildren = (id: string) => categoriesData.some((x) => x.parent_id === id);
     return categoriesData
-      .filter((c) => c.parent_id !== null && !hasChildren(c.id))
+      .filter(
+        (c) =>
+          c.parent_id !== null &&
+          !hasChildren(c.id) &&
+          (c.show_on_home === undefined || c.show_on_home === true),
+      )
       .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
       .map((c) => ({
         id: c.id,

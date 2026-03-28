@@ -12,6 +12,7 @@ class CategoryCreate(BaseModel):
     parent_id: uuid.UUID | None = None
     image_url: str | None = None
     is_active: bool = True
+    show_on_home: bool = True
     sort_order: int = 0
 
 
@@ -21,6 +22,7 @@ class CategoryUpdate(BaseModel):
     parent_id: uuid.UUID | None = None
     image_url: str | None = None
     is_active: bool | None = None
+    show_on_home: bool | None = None
     sort_order: int | None = None
 
 
@@ -31,6 +33,7 @@ class CategoryOut(ORMBase):
     parent_id: uuid.UUID | None
     image_url: str | None
     is_active: bool
+    show_on_home: bool
     sort_order: int
 
 

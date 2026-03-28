@@ -5,6 +5,8 @@ export interface AdminCategory {
   parent_id: string | null;
   image_url: string | null;
   is_active: boolean;
+  /** Leaf categories only: when false, hidden from storefront home “Top categories” grid. */
+  show_on_home: boolean;
   sort_order: number;
 }
 
