@@ -95,6 +95,12 @@
   .shadow-card-hover {
     box-shadow: 0 10px 25px -5px hsl(0 0% 0% / 0.08), 0 4px 10px -3px hsl(0 0% 0% / 0.04);
   }
+
+  /* Large hero photos: stable compositing layer (reduces muddy look in some browsers) */
+  .hero-banner-media {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
 }
 
 @keyframes bluemoon-indeterminate {

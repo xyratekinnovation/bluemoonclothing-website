@@ -10,7 +10,7 @@ from app.schemas.storefront import UploadImageOut
 router = APIRouter(prefix="/uploads", tags=["Uploads"])
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
-MAX_BYTES = 8 * 1024 * 1024
+MAX_BYTES = 20 * 1024 * 1024  # large hero assets (minimize recompression before upload)
 
 
 def _upload_root() -> Path:
@@ -33,7 +33,7 @@ async def upload_image(
         )
     data = await file.read()
     if len(data) > MAX_BYTES:
-        raise HTTPException(status_code=400, detail="File too large (max 8MB)")
+        raise HTTPException(status_code=400, detail="File too large (max 20MB)")
     root = _upload_root()
     root.mkdir(parents=True, exist_ok=True)
     name = f"{uuid.uuid4().hex}{suffix}"

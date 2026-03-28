@@ -60,34 +60,34 @@ const Index = () => {
 
   return (
     <Layout>
-    {/* Hero: object-contain = full artwork visible (no cover crop). Scrim only behind text, not over the whole photo. */}
+    {/* Hero: full-bleed cover reads sharper than letterboxed contain; anchor right+top for wide art with subject on the right */}
     <section className="relative overflow-hidden min-h-[70vh] md:min-h-[80vh] flex items-center bg-secondary">
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 isolate overflow-hidden">
         <picture className="absolute inset-0 block">
           <source media="(max-width: 767px)" srcSet={heroMobileSrc} />
           <img
             src={heroDesktopSrc}
             alt=""
             fetchPriority="high"
-            className="absolute inset-0 h-full w-full object-contain object-center"
+            className="hero-banner-media absolute inset-0 h-full w-full object-cover max-md:object-[center_top] md:object-[right_top]"
           />
         </picture>
       </div>
-      {/* Mobile: light scrim only behind top copy; most of the photo stays full strength */}
+      {/* Mobile: scrim behind copy; long soft falloff avoids a harsh band over the photo */}
       <div
         className="absolute inset-0 z-[1] pointer-events-none md:hidden"
         style={{
           background:
-            "linear-gradient(180deg, hsl(var(--background) / 0.88) 0%, hsl(var(--background) / 0.35) 42%, transparent 68%)",
+            "linear-gradient(180deg, hsl(var(--background) / 0.9) 0%, hsl(var(--background) / 0.42) 36%, hsl(var(--background) / 0.12) 58%, transparent 78%)",
         }}
         aria-hidden
       />
-      {/* Desktop: strong fade only on the left (text column); right ~half stays clear for the subject */}
+      {/* Desktop: wide soft blend into the photo (no hard vertical edge); subject stays mostly untouched on the right */}
       <div
         className="absolute inset-0 z-[1] pointer-events-none hidden md:block"
         style={{
           background:
-            "linear-gradient(90deg, hsl(var(--background) / 0.97) 0%, hsl(var(--background) / 0.55) 14%, hsl(var(--background) / 0.18) 30%, transparent 48%)",
+            "linear-gradient(90deg, hsl(var(--background) / 0.98) 0%, hsl(var(--background) / 0.72) 8%, hsl(var(--background) / 0.38) 18%, hsl(var(--background) / 0.14) 32%, hsl(var(--background) / 0.04) 44%, transparent 62%)",
         }}
         aria-hidden
       />
