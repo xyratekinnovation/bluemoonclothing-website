@@ -1,12 +1,13 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import Select, delete, select
+from sqlalchemy import Select, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import require_admin
 from app.db.session import get_db
+from app.models.category import Category
 from app.models.product import Product, ProductImage, ProductVariant
 from app.schemas.catalog import ProductAdminListOut, ProductCreate, ProductOut, ProductUpdate
 
@@ -97,6 +98,10 @@ async def admin_list_products(
 async def list_products(
     db: AsyncSession = Depends(get_db),
     category_id: uuid.UUID | None = Query(default=None),
+    expand_parent: bool = Query(
+        default=False,
+        description="When true with category_id, include products in direct child categories too (Men/Women/Kids hubs).",
+    ),
     featured: bool | None = Query(default=None),
     active_only: bool = Query(default=True),
     q: str | None = Query(default=None),
@@ -113,7 +118,17 @@ async def list_products(
     if active_only:
         query = query.where(Product.is_active.is_(True))
     if category_id:
-        query = query.where(Product.category_id == category_id)
+        if expand_parent:
+            cat_rows = await db.execute(
+                select(Category.id).where(
+                    or_(Category.id == category_id, Category.parent_id == category_id),
+                ),
+            )
+            allowed = [row[0] for row in cat_rows.all()]
+            if allowed:
+                query = query.where(Product.category_id.in_(allowed))
+        else:
+            query = query.where(Product.category_id == category_id)
     if featured is not None:
         query = query.where(Product.is_featured.is_(featured))
     if q:

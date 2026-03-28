@@ -1,14 +1,17 @@
 import { useParams, Link } from "react-router-dom";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { SlidersHorizontal, X } from "lucide-react";
+import { SlidersHorizontal, X, ImageIcon } from "lucide-react";
 import Layout from "@/components/Layout";
 import ProductCard from "@/components/ProductCard";
-import { apiGet, type ApiCategory, type ApiProduct } from "@/lib/api";
+import { apiGet, resolvePublicAssetUrl, type ApiCategory, type ApiProduct } from "@/lib/api";
 import { toCatalogProduct } from "@/types/catalog";
 
 const sizes = ["XS", "S", "M", "L", "XL", "XXL"];
 const sortOptions = ["Newest", "Price: Low to High", "Price: High to Low"];
+
+/** Parent category pages that show subcategory shortcuts (Men / Women / Kids). */
+const MAIN_PARENT_SLUGS = ["men", "women", "kids"];
 
 const CategoryPage = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -22,17 +25,35 @@ const CategoryPage = () => {
     staleTime: 120_000,
   });
   const activeCategory = categories.find((category) => category.slug === slug);
+
+  const isMainParentHub =
+    Boolean(activeCategory) &&
+    activeCategory!.parent_id === null &&
+    MAIN_PARENT_SLUGS.includes(activeCategory!.slug.toLowerCase());
+
+  const childCategories = useMemo(() => {
+    if (!activeCategory || !isMainParentHub) return [];
+    return categories
+      .filter((c) => c.parent_id === activeCategory.id)
+      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+  }, [categories, activeCategory, isMainParentHub]);
+
   const { data: products = [], isPending: productsPending } = useQuery({
-    queryKey: ["products", slug],
+    queryKey: ["products", slug, isMainParentHub],
     queryFn: () =>
       activeCategory
-        ? apiGet<ApiProduct[]>(`/products?category_id=${activeCategory.id}&limit=100`)
+        ? apiGet<ApiProduct[]>(
+            isMainParentHub
+              ? `/products?category_id=${activeCategory.id}&expand_parent=true&limit=100`
+              : `/products?category_id=${activeCategory.id}&limit=100`,
+          )
         : apiGet<ApiProduct[]>("/products?limit=100"),
     enabled: Boolean(activeCategory) || !slug,
     staleTime: 60_000,
   });
 
-  const categoryName = slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : "All";
+  const categoryName =
+    activeCategory?.name ?? (slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : "All");
   let filtered = products.map((product) => toCatalogProduct(product, slug ?? "all"));
 
   if (selectedSize) filtered = filtered.filter((p) => p.sizes.includes(selectedSize));
@@ -68,6 +89,39 @@ const CategoryPage = () => {
           <span>/</span>
           <span className="text-foreground">{categoryName}</span>
         </div>
+
+        {childCategories.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-xs font-semibold tracking-widest uppercase text-muted-foreground mb-3">
+              Shop by category
+            </h2>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible">
+              {childCategories.map((c) => {
+                const img = resolvePublicAssetUrl(c.image_url ?? undefined);
+                return (
+                  <Link
+                    key={c.id}
+                    to={`/category/${c.slug}`}
+                    className="group shrink-0 w-[5.5rem] sm:w-[6.25rem] text-center"
+                  >
+                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-muted border border-border/80 shadow-sm group-hover:border-primary transition-colors">
+                      {img ? (
+                        <img src={img} alt="" className="w-full h-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                          <ImageIcon className="w-6 h-6 opacity-35" />
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[11px] sm:text-xs font-medium text-foreground mt-1.5 line-clamp-2 leading-tight group-hover:text-primary transition-colors">
+                      {c.name}
+                    </p>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center justify-between mb-8">
           <h1 className="font-serif text-3xl md:text-4xl text-foreground">{categoryName}</h1>

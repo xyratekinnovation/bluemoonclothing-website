@@ -116,19 +116,25 @@ const Index = () => {
           <p className="text-xs font-semibold tracking-[0.25em] uppercase text-primary mb-4">New Collection 2026</p>
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-tight text-foreground mb-6">
             Every Fit Feels<br />
-            Like a <span className="text-gold-gradient">Blue Moon</span>
+            Like a <span className="text-gold-dark font-semibold">Blue Moon</span>
           </h1>
           <p className="text-muted-foreground max-w-md mb-8 leading-relaxed">
             Discover timeless elegance with Bluemoon's latest collection — where premium quality meets modern design.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Link to="/category/men" className="bg-gold-gradient text-primary-foreground px-6 py-3 rounded-md text-sm font-medium tracking-wide hover:opacity-90 transition-opacity inline-flex items-center gap-2">
-              Shop Men <ArrowRight className="w-4 h-4" />
+            <Link
+              to="/category/men"
+              className="bg-gold-gradient text-primary-foreground px-6 py-3 rounded-md text-sm font-medium tracking-wide hover:opacity-90 transition-opacity inline-flex items-center justify-center"
+            >
+              Shop Men
             </Link>
             <Link to="/category/women" className="border border-foreground text-foreground px-6 py-3 rounded-md text-sm font-medium tracking-wide hover:bg-foreground hover:text-background transition-colors">
               Shop Women
             </Link>
-            <Link to="/category/kids" className="border border-border text-muted-foreground px-6 py-3 rounded-md text-sm font-medium tracking-wide hover:border-primary hover:text-primary transition-colors">
+            <Link
+              to="/category/kids"
+              className="bg-gold-gradient text-primary-foreground px-6 py-3 rounded-md text-sm font-medium tracking-wide hover:opacity-90 transition-opacity inline-flex items-center justify-center"
+            >
               Shop Kids
             </Link>
           </div>
@@ -237,18 +243,18 @@ const Index = () => {
             View All <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
-        <div className="flex gap-4 md:gap-6 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-4 md:overflow-visible">
+        <div className="flex gap-3 md:gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-4 md:overflow-visible md:justify-items-center">
           {featuredPending
             ? Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="min-w-[52vw] sm:min-w-[34vw] md:min-w-0 space-y-3">
-                  <div className="aspect-[4/5] rounded-lg bg-muted animate-pulse" />
-                  <div className="h-4 w-2/3 bg-muted rounded animate-pulse" />
-                  <div className="h-4 w-1/3 bg-muted rounded animate-pulse" />
+                <div key={i} className="min-w-[42vw] sm:min-w-[30vw] md:min-w-0 w-full max-w-[12rem] space-y-2">
+                  <div className="aspect-[3/4] max-h-[13rem] rounded-lg bg-muted animate-pulse mx-auto" />
+                  <div className="h-3 w-2/3 bg-muted rounded animate-pulse mx-auto" />
+                  <div className="h-3 w-1/3 bg-muted rounded animate-pulse mx-auto" />
                 </div>
               ))
             : featuredProducts.map((p) => (
-                <div key={p.id} className="min-w-[52vw] sm:min-w-[34vw] md:min-w-0">
-                  <ProductCard product={toCatalogProduct(p)} />
+                <div key={p.id} className="min-w-[42vw] sm:min-w-[30vw] md:min-w-0 flex justify-center shrink-0 md:shrink">
+                  <ProductCard product={toCatalogProduct(p)} compact />
                 </div>
               ))}
         </div>
