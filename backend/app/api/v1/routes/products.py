@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import Select, delete, or_, select
+from sqlalchemy import Select, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -12,6 +12,17 @@ from app.models.product import Product, ProductImage, ProductVariant
 from app.schemas.catalog import ProductAdminListOut, ProductCreate, ProductOut, ProductUpdate
 
 router = APIRouter(prefix="/products", tags=["Products"])
+
+
+async def _collect_descendant_category_ids(db: AsyncSession, root_id: uuid.UUID) -> list[uuid.UUID]:
+    """Root id plus every descendant (multi-level), for hub category product lists."""
+    collected: list[uuid.UUID] = [root_id]
+    frontier: list[uuid.UUID] = [root_id]
+    while frontier:
+        result = await db.execute(select(Category.id).where(Category.parent_id.in_(frontier)))
+        frontier = [row[0] for row in result.all()]
+        collected.extend(frontier)
+    return collected
 
 
 @router.get("/admin-list", response_model=list[ProductAdminListOut])
@@ -100,7 +111,7 @@ async def list_products(
     category_id: uuid.UUID | None = Query(default=None),
     expand_parent: bool = Query(
         default=False,
-        description="When true with category_id, include products in direct child categories too (Men/Women/Kids hubs).",
+        description="When true with category_id, include products in this category and all nested child categories.",
     ),
     featured: bool | None = Query(default=None),
     active_only: bool = Query(default=True),
@@ -119,12 +130,7 @@ async def list_products(
         query = query.where(Product.is_active.is_(True))
     if category_id:
         if expand_parent:
-            cat_rows = await db.execute(
-                select(Category.id).where(
-                    or_(Category.id == category_id, Category.parent_id == category_id),
-                ),
-            )
-            allowed = [row[0] for row in cat_rows.all()]
+            allowed = await _collect_descendant_category_ids(db, category_id)
             if allowed:
                 query = query.where(Product.category_id.in_(allowed))
         else:

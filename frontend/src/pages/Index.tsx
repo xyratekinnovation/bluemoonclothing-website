@@ -66,9 +66,11 @@ const Index = () => {
     }).filter(Boolean) as { id: string; name: string; slug: string; imageSrc: string }[];
   }, [categoriesData]);
 
+  /** Leaf categories only (sellable departments), so hubs/groups do not flood the home grid. */
   const topSubCategories = useMemo(() => {
+    const hasChildren = (id: string) => categoriesData.some((x) => x.parent_id === id);
     return categoriesData
-      .filter((c) => c.parent_id !== null)
+      .filter((c) => c.parent_id !== null && !hasChildren(c.id))
       .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
       .map((c) => ({
         id: c.id,

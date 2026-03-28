@@ -10,9 +10,6 @@ import { toCatalogProduct } from "@/types/catalog";
 const sizes = ["XS", "S", "M", "L", "XL", "XXL"];
 const sortOptions = ["Newest", "Price: Low to High", "Price: High to Low"];
 
-/** Parent category pages that show subcategory shortcuts (Men / Women / Kids). */
-const MAIN_PARENT_SLUGS = ["men", "women", "kids"];
-
 const CategoryPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const [filterOpen, setFilterOpen] = useState(false);
@@ -26,24 +23,24 @@ const CategoryPage = () => {
   });
   const activeCategory = categories.find((category) => category.slug === slug);
 
-  const isMainParentHub =
-    Boolean(activeCategory) &&
-    activeCategory!.parent_id === null &&
-    MAIN_PARENT_SLUGS.includes(activeCategory!.slug.toLowerCase());
+  const categoryHasChildren = useMemo(() => {
+    if (!activeCategory) return false;
+    return categories.some((c) => c.parent_id === activeCategory.id);
+  }, [categories, activeCategory]);
 
   const childCategories = useMemo(() => {
-    if (!activeCategory || !isMainParentHub) return [];
+    if (!activeCategory) return [];
     return categories
       .filter((c) => c.parent_id === activeCategory.id)
       .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
-  }, [categories, activeCategory, isMainParentHub]);
+  }, [categories, activeCategory]);
 
   const { data: products = [], isPending: productsPending } = useQuery({
-    queryKey: ["products", slug, isMainParentHub],
+    queryKey: ["products", slug, categoryHasChildren],
     queryFn: () =>
       activeCategory
         ? apiGet<ApiProduct[]>(
-            isMainParentHub
+            categoryHasChildren
               ? `/products?category_id=${activeCategory.id}&expand_parent=true&limit=100`
               : `/products?category_id=${activeCategory.id}&limit=100`,
           )

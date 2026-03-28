@@ -4,26 +4,12 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
+from app.db.seed_categories import seed_default_categories
 from app.db.session import AsyncSessionLocal
 from app.models.category import Category
 from app.models.product import Product, ProductImage, ProductVariant
 from app.models.user import User
 from app.utils.security import get_password_hash
-
-
-async def upsert_category(session, name: str, slug: str, sort_order: int) -> Category:
-    result = await session.execute(select(Category).where(Category.slug == slug))
-    category = result.scalar_one_or_none()
-    if category:
-        category.name = name
-        category.sort_order = sort_order
-        category.is_active = True
-        return category
-
-    category = Category(name=name, slug=slug, sort_order=sort_order, is_active=True)
-    session.add(category)
-    await session.flush()
-    return category
 
 
 async def upsert_product(
@@ -135,9 +121,10 @@ async def upsert_admin_user(session) -> User:
 
 async def seed() -> None:
     async with AsyncSessionLocal() as session:
-        men = await upsert_category(session, "Men", "men", 1)
-        women = await upsert_category(session, "Women", "women", 2)
-        kids = await upsert_category(session, "Kids", "kids", 3)
+        await seed_default_categories(session)
+        men = (await session.execute(select(Category).where(Category.slug == "men"))).scalar_one()
+        women = (await session.execute(select(Category).where(Category.slug == "women"))).scalar_one()
+        kids = (await session.execute(select(Category).where(Category.slug == "kids"))).scalar_one()
 
         await upsert_product(
             session,
