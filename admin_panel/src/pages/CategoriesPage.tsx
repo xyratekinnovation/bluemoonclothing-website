@@ -208,9 +208,17 @@ export default function CategoriesPage() {
   }, [dialogOpen, editCat]);
 
   const handleDelete = async (id: string) => {
-    await apiDelete(`/categories/${id}`);
-    await queryClient.invalidateQueries({ queryKey: ["admin-categories"] });
-    toast({ title: "Category deleted" });
+    try {
+      await apiDelete(`/categories/${id}`);
+      await queryClient.invalidateQueries({ queryKey: ["admin-categories"] });
+      toast({ title: "Category deleted" });
+    } catch (e) {
+      toast({
+        title: "Delete failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleImageUpload = async (file: File) => {

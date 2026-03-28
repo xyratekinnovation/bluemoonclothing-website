@@ -1,12 +1,14 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin
 from app.db.session import get_db
 from app.models.category import Category
+from app.models.product import Product
 from app.schemas.catalog import CategoryCreate, CategoryOut, CategoryUpdate
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
@@ -71,5 +73,17 @@ async def delete_category(
     category = result.scalar_one_or_none()
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
-    await db.delete(category)
-    await db.commit()
+
+    # Clear FKs explicitly so delete works even if the DB was created without ON DELETE SET NULL.
+    await db.execute(update(Product).where(Product.category_id == category_id).values(category_id=None))
+    await db.execute(update(Category).where(Category.parent_id == category_id).values(parent_id=None))
+
+    try:
+        await db.delete(category)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete this category while other data still references it. Deactivate it instead or remove linked records.",
+        )

@@ -39,7 +39,12 @@ export default function ShippingPage() {
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiDelete(`/shipping-zones/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-shipping"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-shipping"] });
+      toast({ title: "Zone deleted" });
+    },
+    onError: (e: Error) =>
+      toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
   });
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -82,7 +87,7 @@ export default function ShippingPage() {
               <span className="text-lg font-bold">{z.charge === 0 ? "Free" : `₹${z.charge}`}</span>
               <div className="flex gap-1">
                 <Button variant="ghost" size="icon" onClick={() => { setEdit(z); setDialogOpen(true); }}><Edit className="w-4 h-4" /></Button>
-                <Button variant="ghost" size="icon" onClick={() => { deleteMutation.mutate(z.id); toast({ title: "Zone deleted" }); }}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(z.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
               </div>
             </div>
           </div>

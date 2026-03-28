@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174"
+    # Any browser Origin matching this regex is allowed (in addition to CORS_ORIGINS). Default covers Vercel
+    # previews and production (*.vercel.app). Set to empty string in env to disable.
+    CORS_ORIGIN_REGEX: str = r"https://.*\.vercel\.app"
 
     # One-time bootstrap: create this admin if no user with this email exists.
     # Keep disabled by default; enable explicitly only for controlled bootstrap.

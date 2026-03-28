@@ -45,7 +45,12 @@ export default function CouponsPage() {
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiDelete(`/coupons/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-coupons"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-coupons"] });
+      toast({ title: "Coupon deleted" });
+    },
+    onError: (e: Error) =>
+      toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
   });
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -103,7 +108,7 @@ export default function CouponsPage() {
             </div>
             <div className="flex gap-1 mt-3">
               <Button variant="ghost" size="sm" onClick={() => { setEdit(c); setDialogOpen(true); }}><Edit className="w-3.5 h-3.5 mr-1" /> Edit</Button>
-              <Button variant="ghost" size="sm" onClick={() => { deleteMutation.mutate(c.id); toast({ title: "Coupon deleted" }); }}><Trash2 className="w-3.5 h-3.5 mr-1 text-destructive" /> Delete</Button>
+              <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate(c.id)}><Trash2 className="w-3.5 h-3.5 mr-1 text-destructive" /> Delete</Button>
             </div>
           </div>
         ))}

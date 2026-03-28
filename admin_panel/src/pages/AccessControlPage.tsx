@@ -35,7 +35,12 @@ export default function AccessControlPage() {
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiDelete(`/access-control/admins/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-access-control"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-access-control"] });
+      toast({ title: "Admin removed" });
+    },
+    onError: (e: Error) =>
+      toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
   });
 
   const openAdd = () => { setEdit(null); setPerms([]); setDialogOpen(true); };
@@ -83,7 +88,7 @@ export default function AccessControlPage() {
             <div className="flex items-center gap-2 flex-shrink-0">
               <Switch checked={a.active} onCheckedChange={() => patchMutation.mutate({ id: a.id, payload: { active: !a.active, role: a.role, permissions: a.permissions } })} />
               <Button variant="ghost" size="icon" onClick={() => openEdit(a)}><Edit className="w-4 h-4" /></Button>
-              <Button variant="ghost" size="icon" onClick={() => { deleteMutation.mutate(a.id); toast({ title: "Admin removed" }); }}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+              <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(a.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
             </div>
           </div>
         ))}

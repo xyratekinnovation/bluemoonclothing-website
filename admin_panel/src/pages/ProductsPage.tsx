@@ -432,7 +432,12 @@ export default function ProductsPage() {
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiDelete(`/products/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-products"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-products"] });
+      toast({ title: "Product deleted" });
+    },
+    onError: (e: Error) =>
+      toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
   });
 
   const handleToggleStatus = (product: ProductRow) => {

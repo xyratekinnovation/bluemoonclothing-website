@@ -38,7 +38,12 @@ export default function BannersPage() {
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiDelete(`/banners/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-banners"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-banners"] });
+      toast({ title: "Banner deleted" });
+    },
+    onError: (e: Error) =>
+      toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
   });
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -73,7 +78,7 @@ export default function BannersPage() {
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <Switch checked={b.active} onCheckedChange={() => patchMutation.mutate({ id: b.id, payload: { is_active: !b.active } })} />
-              <Button variant="ghost" size="icon" onClick={() => { deleteMutation.mutate(b.id); toast({ title: "Banner deleted" }); }}>
+              <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(b.id)}>
                 <Trash2 className="w-4 h-4 text-destructive" />
               </Button>
             </div>
