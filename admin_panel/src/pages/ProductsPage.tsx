@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, Loader2 } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, Loader2, Upload, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,17 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { apiDelete, apiGet, apiPatch, apiPost, type AdminCategory, type AdminProduct, type AdminProductRow } from "@/lib/api";
+import {
+  apiDelete,
+  apiGet,
+  apiPatch,
+  apiPost,
+  apiPostFormData,
+  resolveUploadedAssetUrl,
+  type AdminCategory,
+  type AdminProduct,
+  type AdminProductRow,
+} from "@/lib/api";
 
 const PRESET_SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
 const MATRIX_KEY_SEP = "\x1e";
@@ -364,6 +374,8 @@ type DraftImage = {
   image_url: string;
   is_primary: boolean;
   sort_order: number;
+  uploading?: boolean;
+  localPreview?: boolean;
 };
 
 export default function ProductsPage() {
@@ -371,11 +383,13 @@ export default function ProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<AdminProduct | null>(null);
-  const [draftName, setDraftName] = useState("");
+  const [draftTitle, setDraftTitle] = useState("");
   const [draftCategoryId, setDraftCategoryId] = useState<string>("none");
   const [draftDescription, setDraftDescription] = useState("");
   const [variantMatrix, setVariantMatrix] = useState<VariantMatrixState>(() => emptyMatrix());
   const [draftImages, setDraftImages] = useState<DraftImage[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [imagePickerKey, setImagePickerKey] = useState(0);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -391,13 +405,19 @@ export default function ProductsPage() {
   });
   const productsTableLoading = productsPending || categoriesPending;
 
+  const categoryById = useMemo(() => {
+    const map = new Map<string, AdminCategory>();
+    for (const c of categories) map.set(c.id, c);
+    return map;
+  }, [categories]);
+
   const products = useMemo<ProductRow[]>(
     () =>
       productsData.map((product) => {
-        const category = categories.find((item) => item.id === product.category_id);
+        const category = product.category_id ? categoryById.get(product.category_id) : undefined;
         return {
           id: product.id,
-          name: product.name,
+          name: product.title ?? product.name,
           category: category?.name ?? "Uncategorized",
           categoryId: product.category_id,
           description: "",
@@ -412,7 +432,7 @@ export default function ProductsPage() {
           color: product.color ?? "",
         };
       }),
-    [categories, productsData],
+    [categoryById, productsData],
   );
 
   const filtered = products.filter(p => {
@@ -462,14 +482,14 @@ export default function ProductsPage() {
   useEffect(() => {
     if (!dialogOpen) return;
     if (!editProduct) {
-      setDraftName("");
+      setDraftTitle("");
       setDraftCategoryId("none");
       setDraftDescription("");
       setVariantMatrix(emptyMatrix());
       setDraftImages([]);
       return;
     }
-    setDraftName(editProduct.name);
+    setDraftTitle((editProduct.title ?? "").trim() || editProduct.name);
     setDraftCategoryId(editProduct.category_id ?? "none");
     setDraftDescription(editProduct.description ?? "");
     setVariantMatrix(matrixFromVariants(editProduct.variants));
@@ -481,16 +501,67 @@ export default function ProductsPage() {
     setDraftImages(imgs);
   }, [dialogOpen, editProduct]);
 
-  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const name = draftName.trim();
-    if (!name) {
-      toast({ title: "Name is required", variant: "destructive" });
+  const validateImageFile = (file: File): string | null => {
+    const okTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+    if (!okTypes.has(file.type)) return "Only JPG, PNG, and WEBP files are allowed";
+    if (file.size > 8 * 1024 * 1024) return "Each image must be 8MB or less";
+    return null;
+  };
+
+  const handleImageFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const selected = Array.from(files);
+    const bad = selected.map(validateImageFile).find(Boolean);
+    if (bad) {
+      toast({ title: "Invalid image", description: bad, variant: "destructive" });
       return;
     }
+
+    setUploadingImages(true);
+    for (const file of selected) {
+      const preview = URL.createObjectURL(file);
+      const tempSort = draftImages.length;
+      setDraftImages((prev) => [
+        ...prev,
+        { image_url: preview, localPreview: true, uploading: true, is_primary: prev.length === 0, sort_order: tempSort },
+      ]);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const { url } = await apiPostFormData<{ url: string }>("/uploads/image", fd);
+        setDraftImages((prev) =>
+          prev.map((img) =>
+            img.image_url === preview
+              ? { ...img, image_url: url, localPreview: false, uploading: false }
+              : img,
+          ),
+        );
+      } catch (e) {
+        setDraftImages((prev) => prev.filter((img) => img.image_url !== preview));
+        toast({
+          title: "Image upload failed",
+          description: e instanceof Error ? e.message : "Unknown error",
+          variant: "destructive",
+        });
+      } finally {
+        URL.revokeObjectURL(preview);
+      }
+    }
+    setUploadingImages(false);
+    setImagePickerKey((k) => k + 1);
+  };
+
+  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const title = draftTitle.trim();
+    if (!title) {
+      toast({ title: "Product title is required", variant: "destructive" });
+      return;
+    }
+    const name = title;
     const categoryId = draftCategoryId && draftCategoryId !== "none" ? draftCategoryId : null;
     const description = draftDescription?.trim() ? draftDescription.trim() : null;
-    const slug = name.toLowerCase().trim().replace(/\s+/g, "-");
+    const slug = title.toLowerCase().trim().replace(/\s+/g, "-");
 
     const extraParsed = parseList(variantMatrix.extraSizesRaw);
     const allSizes = sortSizesList([...variantMatrix.presetSizes, ...extraParsed]);
@@ -531,6 +602,11 @@ export default function ProductsPage() {
       return;
     }
 
+    if (draftImages.some((img) => img.uploading)) {
+      toast({ title: "Please wait", description: "Images are still uploading", variant: "destructive" });
+      return;
+    }
+
     const images = draftImages
       .map((img, idx) => ({
         image_url: img.image_url.trim(),
@@ -552,6 +628,7 @@ export default function ProductsPage() {
           id: editProduct.id,
           payload: {
             name,
+            title,
             category_id: categoryId,
             slug,
             description,
@@ -563,6 +640,7 @@ export default function ProductsPage() {
       } else {
         await createMutation.mutateAsync({
           name,
+          title,
           slug,
           category_id: categoryId,
           description,
@@ -695,8 +773,8 @@ export default function ProductsPage() {
             <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-4">
               <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <Label>Name</Label>
-                <Input value={draftName} onChange={(e) => setDraftName(e.target.value)} required />
+                <Label>Product title</Label>
+                <Input value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} required />
               </div>
               <div>
                 <Label>Category</Label>
@@ -720,25 +798,40 @@ export default function ProductsPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Images</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDraftImages((prev) => [...prev, { image_url: "", is_primary: prev.length === 0, sort_order: prev.length }])}
-                  >
-                    Add Image
+                  <Button type="button" variant="outline" size="sm" disabled={uploadingImages} asChild>
+                    <label htmlFor="product-image-upload" className="cursor-pointer">
+                      {uploadingImages ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+                      Upload images
+                    </label>
                   </Button>
+                  <input
+                    id="product-image-upload"
+                    key={imagePickerKey}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => void handleImageFiles(e.target.files)}
+                  />
                 </div>
                 <div className="space-y-3">
                   {draftImages.map((img, idx) => (
                     <div key={idx} className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
                       <div className="col-span-2">
-                        <Label className="text-xs">Image URL</Label>
-                        <Input
-                          value={img.image_url}
-                          onChange={(e) => setDraftImages((prev) => prev.map((x, i) => (i === idx ? { ...x, image_url: e.target.value } : x)))}
-                          placeholder="https://..."
-                        />
+                        <Label className="text-xs">Preview</Label>
+                        <div className="mt-1 relative aspect-[4/3] max-h-44 rounded-md overflow-hidden border border-border bg-muted">
+                          <img
+                            src={img.localPreview ? img.image_url : (resolveUploadedAssetUrl(img.image_url) ?? img.image_url)}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                          {img.uploading ? (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-xs gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Uploading...
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Switch
@@ -767,6 +860,7 @@ export default function ProductsPage() {
                           className="text-destructive"
                           onClick={() => setDraftImages((prev) => prev.filter((_, i) => i !== idx))}
                         >
+                          <X className="w-3 h-3 mr-1" />
                           Remove
                         </Button>
                       </div>

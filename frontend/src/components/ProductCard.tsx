@@ -20,7 +20,7 @@ const ProductCard = ({ product, compact }: ProductCardProps) => (
     >
       <img
         src={product.image}
-        alt={product.name}
+        alt={product.title}
         loading="lazy"
         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
       />
@@ -48,7 +48,7 @@ const ProductCard = ({ product, compact }: ProductCardProps) => (
         compact ? "text-xs mb-0.5" : "text-sm mb-1"
       }`}
     >
-      {product.name}
+      {product.title}
     </h3>
     <div className={`flex items-center gap-2 ${compact ? "flex-wrap" : ""}`}>
       <span className={`font-semibold text-primary ${compact ? "text-xs" : "text-sm"}`}>

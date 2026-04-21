@@ -31,6 +31,7 @@ export interface ApiImage {
 
 export interface ApiProduct {
   id: string;
+  title: string | null;
   name: string;
   slug: string;
   description: string | null;

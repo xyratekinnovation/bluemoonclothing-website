@@ -6,7 +6,7 @@ const NO_IMAGE_PLACEHOLDER =
 
 export interface CatalogProduct {
   id: string;
-  name: string;
+  title: string;
   price: number;
   originalPrice?: number;
   image: string;
@@ -45,7 +45,7 @@ export function toCatalogProduct(
 
   return {
     id: product.id,
-    name: product.name,
+    title: (product.title ?? "").trim() || (product.description ?? "").trim() || product.name,
     price: Number(firstVariant?.price ?? 0),
     originalPrice: firstVariant?.compare_at_price ? Number(firstVariant.compare_at_price) : undefined,
     image: resolved[0] ?? NO_IMAGE_PLACEHOLDER,

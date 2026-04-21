@@ -1,7 +1,7 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import Select, delete, select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import Select, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -38,6 +38,7 @@ async def admin_list_products(
     # Uses correlated subqueries to fetch the "first" variant and primary image.
     base = select(
         Product.id,
+        Product.title,
         Product.name,
         Product.slug,
         Product.category_id,
@@ -47,7 +48,8 @@ async def admin_list_products(
     if active_only:
         base = base.where(Product.is_active.is_(True))
     if q:
-        base = base.where(Product.name.ilike(f"%{q.strip()}%"))
+        term = f"%{q.strip()}%"
+        base = base.where(or_(Product.title.ilike(term), Product.name.ilike(term)))
 
     sub = base.subquery()
 
@@ -107,6 +109,7 @@ async def admin_list_products(
 
 @router.get("", response_model=list[ProductOut])
 async def list_products(
+    response: Response,
     db: AsyncSession = Depends(get_db),
     category_id: uuid.UUID | None = Query(default=None),
     expand_parent: bool = Query(
@@ -119,6 +122,7 @@ async def list_products(
     limit: int = Query(default=24, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> list[Product]:
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
     query: Select[tuple[Product]] = (
         select(Product)
         .options(selectinload(Product.variants), selectinload(Product.images))
@@ -138,7 +142,8 @@ async def list_products(
     if featured is not None:
         query = query.where(Product.is_featured.is_(featured))
     if q:
-        query = query.where(Product.name.ilike(f"%{q.strip()}%"))
+        term = f"%{q.strip()}%"
+        query = query.where(or_(Product.title.ilike(term), Product.name.ilike(term)))
 
     result = await db.execute(query)
     return list(result.scalars().unique().all())
@@ -168,6 +173,11 @@ async def create_product(
         raise HTTPException(status_code=400, detail="Product slug already exists")
 
     data = payload.model_dump(exclude={"variants", "images"})
+    title = (data.get("title") or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Product title is required")
+    data["title"] = title
+    data["name"] = (data.get("name") or title).strip()
     product = Product(**data)
     db.add(product)
     await db.flush()
@@ -197,6 +207,16 @@ async def update_product(
     payload_data = payload.model_dump(exclude_unset=True)
     variants = payload_data.pop("variants", None)
     images = payload_data.pop("images", None)
+
+    if "title" in payload_data and payload_data["title"] is not None:
+        payload_data["title"] = str(payload_data["title"]).strip()
+        if not payload_data["title"]:
+            raise HTTPException(status_code=400, detail="Product title is required")
+    if "name" in payload_data and payload_data["name"] is not None:
+        payload_data["name"] = str(payload_data["name"]).strip()
+    if "title" in payload_data and "name" not in payload_data:
+        # Keep legacy `name` aligned with UI title unless explicitly overridden.
+        payload_data["name"] = payload_data["title"]
 
     for key, value in payload_data.items():
         setattr(product, key, value)

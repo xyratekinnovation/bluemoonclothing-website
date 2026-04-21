@@ -24,6 +24,7 @@ export interface AdminVariant {
 
 export interface AdminProduct {
   id: string;
+  title: string | null;
   name: string;
   slug: string;
   description: string | null;
@@ -47,6 +48,7 @@ export interface HeroBannerPayload {
 
 export interface AdminProductRow {
   id: string;
+  title: string | null;
   name: string;
   slug: string;
   category_id: string | null;

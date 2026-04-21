@@ -55,7 +55,8 @@ class ProductImageIn(BaseModel):
 
 
 class ProductCreate(BaseModel):
-    name: str
+    title: str = Field(min_length=1, max_length=220)
+    name: str | None = None
     slug: str
     description: str | None = None
     badge: str | None = None
@@ -67,6 +68,7 @@ class ProductCreate(BaseModel):
 
 
 class ProductUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=220)
     name: str | None = None
     slug: str | None = None
     description: str | None = None
@@ -99,6 +101,7 @@ class ProductImageOut(ORMBase):
 
 class ProductOut(ORMBase):
     id: uuid.UUID
+    title: str | None
     name: str
     slug: str
     description: str | None
@@ -112,6 +115,7 @@ class ProductOut(ORMBase):
 
 class ProductAdminListOut(BaseModel):
     id: uuid.UUID
+    title: str | None
     name: str
     slug: str
     category_id: uuid.UUID | None

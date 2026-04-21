@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,9 +16,11 @@ router = APIRouter(prefix="/categories", tags=["Categories"])
 
 @router.get("", response_model=list[CategoryOut])
 async def list_categories(
+    response: Response,
     db: AsyncSession = Depends(get_db),
     active_only: bool = Query(default=True),
 ) -> list[Category]:
+    response.headers["Cache-Control"] = "public, max-age=120, stale-while-revalidate=300"
     query = select(Category).order_by(Category.sort_order.asc(), Category.name.asc())
     if active_only:
         query = query.where(Category.is_active.is_(True))

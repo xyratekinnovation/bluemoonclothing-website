@@ -172,7 +172,7 @@ const ProductPage = () => {
       return;
     }
     addVariant(selectedVariant.id, quantity)
-      .then(() => toast.success(`${product.name} added to cart`))
+      .then(() => toast.success(`${product.title} added to cart`))
       .catch((err) => toast.error(err instanceof Error ? err.message : "Unable to add to cart"));
   };
 
@@ -184,12 +184,12 @@ const ProductPage = () => {
           <span>/</span>
           <Link to={`/category/${product.category}`} className="hover:text-primary transition-colors capitalize">{product.category}</Link>
           <span>/</span>
-          <span className="text-foreground">{product.name}</span>
+          <span className="text-foreground">{product.title}</span>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 md:gap-12">
           <div className="aspect-[3/4] rounded-lg overflow-hidden bg-secondary">
-            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+            <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
           </div>
 
           <div className="flex flex-col">
@@ -198,7 +198,7 @@ const ProductPage = () => {
                 {product.badge}
               </span>
             )}
-            <h1 className="font-serif text-2xl md:text-3xl text-foreground mb-2">{product.name}</h1>
+            <h1 className="font-serif text-2xl md:text-3xl text-foreground mb-2">{product.title}</h1>
             <div className="flex items-center gap-3 mb-6">
               <span className="text-xl font-semibold text-primary">₹{displayPrice.toLocaleString()}</span>
               {selectedVariant?.compare_at_price != null && Number(selectedVariant.compare_at_price) > displayPrice && (
