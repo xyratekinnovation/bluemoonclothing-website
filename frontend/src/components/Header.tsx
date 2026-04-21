@@ -25,7 +25,10 @@ const Header = () => {
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
     queryFn: () => apiGet<ApiCategory[]>("/categories?active_only=true"),
-    staleTime: 120_000,
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    refetchInterval: 20_000,
   });
 
   const parentCategories = useMemo(

@@ -19,7 +19,10 @@ const CategoryPage = () => {
   const { data: categories = [], isPending: categoriesPending, dataUpdatedAt: categoriesDU } = useQuery({
     queryKey: ["categories"],
     queryFn: () => apiGet<ApiCategory[]>("/categories"),
-    staleTime: 120_000,
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    refetchInterval: 20_000,
   });
   const activeCategory = categories.find((category) => category.slug === slug);
 

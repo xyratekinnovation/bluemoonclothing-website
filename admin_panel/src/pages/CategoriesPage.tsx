@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Edit, Trash2, FolderTree, Upload, Loader2, X } from "lucide-react";
+import { Plus, Edit, Trash2, FolderTree, Upload, Loader2, X, CircleDot, ChevronRight } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
   apiDelete,
@@ -60,6 +61,24 @@ function categoryHasChildren(id: string, all: AdminCategory[]) {
   return all.some((c) => c.parent_id === id);
 }
 
+type Segment = "men" | "women" | "kids";
+
+function inferSegmentForCategory(cat: AdminCategory, byId: Map<string, AdminCategory>): Segment | null {
+  const seen = new Set<string>();
+  let cur: AdminCategory | undefined = cat;
+  while (cur) {
+    const slug = cur.slug.toLowerCase();
+    const name = cur.name.toLowerCase();
+    if (slug === "men" || slug.startsWith("men-") || name.includes("men")) return "men";
+    if (slug === "women" || slug.startsWith("women-") || name.includes("women")) return "women";
+    if (slug === "kids" || slug.startsWith("kids-") || name.includes("kids")) return "kids";
+    if (!cur.parent_id || seen.has(cur.parent_id)) break;
+    seen.add(cur.parent_id);
+    cur = byId.get(cur.parent_id);
+  }
+  return null;
+}
+
 function CategoryTreeRow({
   cat,
   depth,
@@ -82,34 +101,38 @@ function CategoryTreeRow({
   const kids = childrenOf(cat.id, categoriesData);
   const leaf = !categoryHasChildren(cat.id, categoriesData);
   const rowBusy = patchingId === cat.id;
+  const isTop = depth === 0;
 
   return (
     <>
       <div
-        className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 border-b border-border hover:bg-surface-hover transition-colors"
-        style={{ paddingLeft: `${12 + depth * 18}px` }}
+        className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 border-b border-border/70 transition-colors ${
+          cat.is_active ? "hover:bg-surface-hover" : "bg-muted/20 hover:bg-muted/30"
+        }`}
+        style={{ paddingLeft: `${12 + depth * 20}px` }}
       >
         <div className="flex items-center gap-3 min-w-0 flex-1 basis-[200px]">
+          {depth > 0 ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : null}
           {cat.image_url ? (
             <img
               src={resolveThumbUrl(cat.image_url) ?? ""}
               alt=""
-              className="w-10 h-10 rounded-md object-cover bg-muted shrink-0"
+              className="w-10 h-10 rounded-md object-cover bg-muted shrink-0 border border-border"
             />
           ) : (
-            <FolderTree className="w-5 h-5 text-gold shrink-0" />
+            isTop ? <FolderTree className="w-5 h-5 text-gold shrink-0" /> : <CircleDot className="w-4 h-4 text-muted-foreground shrink-0" />
           )}
           <div className="min-w-0">
-            <p className="text-sm font-medium truncate">{cat.name}</p>
+            <p className={`text-sm truncate ${isTop ? "font-semibold" : "font-medium"}`}>{cat.name}</p>
             <p className="text-xs text-muted-foreground truncate">
               /{cat.slug}
-              {!cat.is_active ? " · inactive" : ""}
+              {cat.is_active ? " · active" : " · inactive"}
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-3 shrink-0 md:pl-2">
           {rowBusy ? <Loader2 className="w-4 h-4 shrink-0 animate-spin text-primary" aria-label="Saving" /> : null}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-[108px] justify-end">
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">Active</span>
             <Switch
               checked={cat.is_active}
@@ -118,7 +141,7 @@ function CategoryTreeRow({
             />
           </div>
           {leaf ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-[128px] justify-end">
               <span className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">
                 Home row
               </span>
@@ -129,7 +152,7 @@ function CategoryTreeRow({
               />
             </div>
           ) : (
-            <span className="text-[10px] text-muted-foreground max-w-[140px]">
+            <span className="text-[10px] text-muted-foreground max-w-[140px] text-right">
               Home row applies to leaf subcategories
             </span>
           )}
@@ -161,6 +184,7 @@ function CategoryTreeRow({
 }
 
 export default function CategoriesPage() {
+  const [segmentTab, setSegmentTab] = useState<Segment>("men");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editCat, setEditCat] = useState<AdminCategory | null>(null);
   const [formActive, setFormActive] = useState(true);
@@ -194,6 +218,17 @@ export default function CategoriesPage() {
     }
     return flatParentOptions(categoriesData, exclude);
   }, [categoriesData, editCat]);
+
+  const categoriesById = useMemo(() => new Map(categoriesData.map((c) => [c.id, c])), [categoriesData]);
+
+  const segmentedRoots = useMemo(() => {
+    const roots = childrenOf(null, categoriesData);
+    return {
+      men: roots.filter((r) => inferSegmentForCategory(r, categoriesById) === "men"),
+      women: roots.filter((r) => inferSegmentForCategory(r, categoriesById) === "women"),
+      kids: roots.filter((r) => inferSegmentForCategory(r, categoriesById) === "kids"),
+    };
+  }, [categoriesById, categoriesData]);
 
   useEffect(() => {
     if (!dialogOpen) return;
@@ -315,37 +350,54 @@ export default function CategoriesPage() {
       </div>
 
       <div className="bg-card rounded-xl card-shadow overflow-hidden">
-        <div className="px-4 py-2 border-b border-border bg-muted/30">
+        <div className="px-4 py-3 border-b border-border bg-muted/30">
           <p className="text-xs text-muted-foreground">
             <strong>Active</strong> hides the category from the storefront. <strong>Home row</strong> only affects leaf
             categories in the home “Top categories” strip — turn off to reduce clutter without deactivating.
           </p>
         </div>
-        {categoriesPending ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="w-10 h-10 animate-spin text-primary" aria-label="Loading categories" />
-          </div>
-        ) : (
-          childrenOf(null, categoriesData).map((root) => (
-            <CategoryTreeRow
-              key={root.id}
-              cat={root}
-              depth={0}
-              categoriesData={categoriesData}
-              onPatch={patchCategory}
-              onEdit={(c) => {
-                setEditCat(c);
-                setDialogOpen(true);
-              }}
-              onDelete={handleDelete}
-              patchingId={patchingId}
-              resolveThumbUrl={resolveThumbUrl}
-            />
-          ))
-        )}
-        {!categoriesPending && categoriesData.length === 0 ? (
-          <p className="p-6 text-sm text-muted-foreground text-center">No categories yet.</p>
-        ) : null}
+        <Tabs value={segmentTab} onValueChange={(v) => setSegmentTab(v as Segment)} className="p-4 pt-3">
+          <TabsList className="grid grid-cols-3 w-full sm:w-[360px]">
+            <TabsTrigger value="men">Men</TabsTrigger>
+            <TabsTrigger value="women">Women</TabsTrigger>
+            <TabsTrigger value="kids">Kids</TabsTrigger>
+          </TabsList>
+
+          {(["men", "women", "kids"] as Segment[]).map((seg) => (
+            <TabsContent key={seg} value={seg} className="mt-4">
+              {categoriesPending ? (
+                <div className="flex justify-center py-16">
+                  <Loader2 className="w-10 h-10 animate-spin text-primary" aria-label="Loading categories" />
+                </div>
+              ) : segmentedRoots[seg].length === 0 ? (
+                <p className="p-6 text-sm text-muted-foreground text-center">No {seg} categories yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {segmentedRoots[seg].map((root) => (
+                    <section key={root.id} className="rounded-lg border border-border overflow-hidden bg-card">
+                      <div className="px-4 py-2 border-b border-border bg-background/60">
+                        <p className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">{root.name}</p>
+                      </div>
+                      <CategoryTreeRow
+                        cat={root}
+                        depth={0}
+                        categoriesData={categoriesData}
+                        onPatch={patchCategory}
+                        onEdit={(c) => {
+                          setEditCat(c);
+                          setDialogOpen(true);
+                        }}
+                        onDelete={handleDelete}
+                        patchingId={patchingId}
+                        resolveThumbUrl={resolveThumbUrl}
+                      />
+                    </section>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
       </div>
 
       <Dialog
