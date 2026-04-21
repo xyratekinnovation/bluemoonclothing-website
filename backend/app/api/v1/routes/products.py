@@ -84,6 +84,7 @@ async def admin_list_products(
     query = (
         select(
             sub.c.id,
+            sub.c.title,
             sub.c.name,
             sub.c.slug,
             sub.c.category_id,
